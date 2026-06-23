@@ -7,3 +7,5 @@ node_modules/
 .env.production
 .DS_Store
 npm-debug.log*
+.vercel
+.payable-src/

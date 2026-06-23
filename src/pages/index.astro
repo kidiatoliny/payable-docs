@@ -1,0 +1,137 @@
+---
+import '@/styles/globals.css';
+import { getCollection } from 'astro:content';
+import { buildNav } from '@/lib/nav';
+import { buttonVariants } from '@/components/ui/button';
+import Header from '@/components/Header.astro';
+
+const docs = await getCollection('docs');
+const nav = buildNav(docs);
+
+const cards = [
+  {
+    title: 'Overview',
+    description: 'What the engine is, the problems it solves, and its boundaries.',
+    href: '/01-overview',
+    path: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
+  },
+  {
+    title: 'Architecture',
+    description: 'The four layers, the dependency rule, and the zero-peer core guarantee.',
+    href: '/02-architecture',
+    path: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+  },
+  {
+    title: 'Getting started',
+    description: 'Install, wire createPayable, and run a first checkout.',
+    href: '/03-getting-started',
+    path: 'M5 12h14M13 5l7 7-7 7',
+  },
+  {
+    title: 'Webhooks',
+    description: 'Receive, verify, dedupe, process, reconcile, and replay provider events.',
+    href: '/features/13-webhooks',
+    path: 'M4 4v6h6M20 20v-6h-6M20 8a8 8 0 0 0-14-3M4 16a8 8 0 0 0 14 3',
+  },
+  {
+    title: 'Providers',
+    description: 'The PaymentProvider contract, capabilities, Stripe, and Paddle.',
+    href: '/integrations/17-providers',
+    path: 'M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z',
+  },
+  {
+    title: 'Configuration',
+    description: 'Every PayableConfig field, its default, and what it unlocks.',
+    href: '/04-configuration',
+    path: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+  },
+];
+---
+
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>payable docs</title>
+    <meta
+      name="description"
+      content="Documentation for the framework-agnostic Node.js billing engine."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    />
+    <script is:inline>
+      const mode = localStorage.getItem('theme') || 'system';
+      const dark =
+        mode === 'dark' ||
+        (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('dark', dark);
+    </script>
+  </head>
+  <body class="min-h-screen bg-background text-foreground">
+    <Header nav={nav} />
+    <main class="relative overflow-hidden">
+      <div
+        class="pointer-events-none absolute inset-x-0 top-0 h-[480px] bg-[radial-gradient(60%_60%_at_78%_-10%,color-mix(in_oklab,var(--primary)_18%,transparent),transparent)]"
+      >
+      </div>
+
+      <section class="relative mx-auto max-w-5xl px-6 pb-10 pt-24 text-center sm:pt-32">
+        <h1
+          class="mx-auto max-w-3xl bg-gradient-to-br from-foreground via-foreground to-primary bg-clip-text text-5xl font-extrabold tracking-tight text-transparent sm:text-6xl"
+        >
+          The agnostic billing engine for Node.js
+        </h1>
+        <p class="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
+          Framework, provider, storage, and queue agnostic. The core knows only contracts, DTOs,
+          actions, value objects, and state machines. Money stays in minor units, so logic never
+          touches floats.
+        </p>
+        <div class="mt-8 flex items-center justify-center gap-3">
+          <a href="/03-getting-started" class={buttonVariants({ size: 'lg' })}>Get started</a>
+          <a
+            href="https://github.com/akira-io/payable"
+            class={buttonVariants({ variant: 'outline', size: 'lg' })}
+          >
+            View on GitHub
+          </a>
+        </div>
+      </section>
+
+      <section class="relative mx-auto max-w-5xl px-6 pb-24">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {
+            cards.map((card) => (
+              <a
+                href={card.href}
+                class="group flex flex-col rounded-xl border border-border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/50"
+              >
+                <span class="inline-flex size-10 items-center justify-center rounded-lg border border-border bg-accent text-accent-foreground">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d={card.path} />
+                  </svg>
+                </span>
+                <span class="mt-4 font-semibold group-hover:text-primary">{card.title}</span>
+                <span class="mt-1.5 text-sm text-muted-foreground">{card.description}</span>
+              </a>
+            ))
+          }
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
