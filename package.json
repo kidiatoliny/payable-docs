@@ -1,0 +1,21 @@
+{
+  "name": "payable-docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Documentation site for @akira-io/payable, mirroring the docs/ tree.",
+  "scripts": {
+    "sync": "node scripts/sync-docs.mjs",
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.36.0",
+    "astro": "^5.16.0",
+    "astro-mermaid": "^1.1.0",
+    "mermaid": "^11.12.0",
+    "sharp": "^0.34.0"
+  }
+}
