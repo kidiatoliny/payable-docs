@@ -18,6 +18,7 @@
     "@radix-ui/react-dialog": "^1.1.6",
     "@tailwindcss/typography": "^0.5.16",
     "@tailwindcss/vite": "^4.1.0",
+    "@vercel/analytics": "^2.0.1",
     "astro": "^5.16.0",
     "astro-mermaid": "^1.1.0",
     "class-variance-authority": "^0.7.1",

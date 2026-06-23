@@ -5,6 +5,7 @@ import { buildNav, flattenNav } from '@/lib/nav';
 import Header from '@/components/Header.astro';
 import Sidebar from '@/components/Sidebar.astro';
 import Toc from '@/components/Toc.astro';
+import Analytics from '@vercel/analytics/astro';
 
 interface Heading {
   depth: number;
@@ -37,6 +38,7 @@ const pageDescription = description ?? 'Documentation for the framework-agnostic
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
     <meta name="description" content={pageDescription} />
+    <Analytics />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
