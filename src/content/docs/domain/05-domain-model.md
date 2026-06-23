@@ -99,7 +99,6 @@ erDiagram
     string interval
     boolean active
   }
-}
 ```
 
 Relationships are expressed by foreign-key string fields (`customerId`, `subscriptionId`, `priceId`, `productId`, `paymentId`). There are no embedded references; entities only carry the id of related records.
