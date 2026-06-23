@@ -48,8 +48,6 @@ Invalid <machine> transition '<event>' from state '<from>'
 
 It carries `code: 'INVALID_STATE_TRANSITION'` and a `context` of `{ machine, from, transition }`. A terminal state (one whose map entry is empty or absent) therefore rejects every event. Use `can(event)` to test a transition without triggering the throw.
 
-The behavior below is confirmed by `tests/state-machines.test.ts`.
-
 ## Subscription
 
 `src/domain/states/subscription-state-machine.ts`. States are the `SubscriptionStatus` values; default initial state is `incomplete`.
@@ -105,8 +103,6 @@ stateDiagram-v2
   incomplete_expired --> [*]
 ```
 
-Confirmed by tests:
-
 ```ts
 const m = new SubscriptionStateMachine('incomplete');
 expect(m.startTrial().current()).toBe('trialing');
@@ -157,8 +153,6 @@ stateDiagram-v2
   paid --> [*]
   void --> [*]
 ```
-
-Confirmed by tests:
 
 ```ts
 const m = new InvoiceStateMachine('draft');
@@ -214,8 +208,6 @@ stateDiagram-v2
   refunded --> [*]
 ```
 
-Confirmed by tests:
-
 ```ts
 const m = new PaymentStateMachine('pending');
 expect(m.process().current()).toBe('processing');
@@ -256,8 +248,6 @@ stateDiagram-v2
   failed --> [*]
   canceled --> [*]
 ```
-
-Confirmed by tests:
 
 ```ts
 expect(new RefundStateMachine('pending').succeed().current()).toBe('succeeded');

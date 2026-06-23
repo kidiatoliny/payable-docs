@@ -7,9 +7,6 @@ sidebar:
 `@akira-io/payable/fastify` exposes `createFastifyPayablePlugin(payable, options?)`, which returns a
 `FastifyPluginAsync`. Register it on a Fastify instance, optionally under a route prefix.
 
-Source: `src/presentation/fastify/create-fastify-payable-plugin.ts`, `helpers.ts`, and
-`routes/*.ts`.
-
 ## Purpose
 
 Bridge Fastify requests to the `Payable` facade and `PayableError` instances to HTTP replies. The
@@ -29,7 +26,7 @@ interface FastifyPayableOptions {
 }
 ```
 
-The plugin (`create-fastify-payable-plugin.ts`) performs, in order:
+The plugin performs, in order:
 
 1. `fastify.setErrorHandler(payableErrorReply)`.
 2. Registers webhook routes inside a nested `fastify.register(...)` scope.
@@ -39,27 +36,25 @@ The plugin (`create-fastify-payable-plugin.ts`) performs, in order:
 
 ## Routes registered
 
-| Method | Path | Status (success) | Source | Behavior |
-| --- | --- | --- | --- | --- |
-| POST | `/webhooks` | 200 | `routes/webhooks.routes.ts` | Default-provider webhook receipt |
-| POST | `/webhooks/:provider` | 200 | `routes/webhooks.routes.ts` | Provider-scoped webhook receipt |
-| POST | `/checkout` | 201 | `routes/checkout.routes.ts` | Create a subscription checkout session |
-| POST | `/subscriptions/:name/cancel` | 200 | `routes/subscriptions.routes.ts` | Cancel at period end |
-| POST | `/subscriptions/:name/cancel-now` | 200 | `routes/subscriptions.routes.ts` | Cancel immediately |
-| POST | `/subscriptions/:name/resume` | 200 | `routes/subscriptions.routes.ts` | Resume a canceled subscription |
-| POST | `/subscriptions/:name/swap` | 200 | `routes/subscriptions.routes.ts` | Swap to a new price |
-| POST | `/customers` | 501 | `routes/placeholder.routes.ts` | Reserved; throws `NOT_IMPLEMENTED` |
-| GET | `/invoices` | 501 | `routes/placeholder.routes.ts` | Reserved; throws `NOT_IMPLEMENTED` |
-| GET | `/payments` | 501 | `routes/placeholder.routes.ts` | Reserved; throws `NOT_IMPLEMENTED` |
-| POST | `/refunds` | 501 | `routes/placeholder.routes.ts` | Reserved; throws `NOT_IMPLEMENTED` |
+| Method | Path | Status (success) | Behavior |
+| --- | --- | --- | --- |
+| POST | `/webhooks` | 200 | Default-provider webhook receipt |
+| POST | `/webhooks/:provider` | 200 | Provider-scoped webhook receipt |
+| POST | `/checkout` | 201 | Create a subscription checkout session |
+| POST | `/subscriptions/:name/cancel` | 200 | Cancel at period end |
+| POST | `/subscriptions/:name/cancel-now` | 200 | Cancel immediately |
+| POST | `/subscriptions/:name/resume` | 200 | Resume a canceled subscription |
+| POST | `/subscriptions/:name/swap` | 200 | Swap to a new price |
+| POST | `/customers` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
+| GET | `/invoices` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
+| GET | `/payments` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
+| POST | `/refunds` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
 
 ## Parity gap vs Express
 
-This adapter is a strict subset of the Express adapter. Despite the README stating the adapters
-"mount the same routes," the Fastify plugin does not implement the full route set.
-
-What Fastify implements: webhooks, checkout, and subscription management (`cancel`, `cancel-now`,
-`resume`, `swap`).
+This adapter is a strict subset of the Express adapter. It implements webhooks, checkout, and
+subscription management (`cancel`, `cancel-now`, `resume`, `swap`), but does not implement the full
+route set.
 
 What Fastify does NOT implement:
 
@@ -68,7 +63,7 @@ What Fastify does NOT implement:
 - `POST /customers`, `GET /invoices`, `GET /payments` - placeholders that throw `NOT_IMPLEMENTED`
   (HTTP 501), matching Express's reserved endpoints.
 
-All four placeholder routes live in `routes/placeholder.routes.ts`:
+All four placeholder routes:
 
 ```ts
 scope.post('/customers', async () => { throw PayableError.notImplemented('POST /customers'); });
@@ -77,8 +72,8 @@ scope.get('/payments', async () => { throw PayableError.notImplemented('GET /pay
 scope.post('/refunds', async () => { throw PayableError.notImplemented('POST /refunds'); });
 ```
 
-Practical consequence: to process refunds over HTTP today, use the Express adapter or call
-`payable.refund(...)` directly. See `docs/29-troubleshooting.md`.
+To process refunds over HTTP today, use the Express adapter or call `payable.refund(...)` directly.
+See `docs/29-troubleshooting.md`.
 
 Unlike the Express checkout/subscription routes, the Fastify checkout and subscription handlers do
 not run the shared Zod schemas; they cast the request body to a TypeScript interface
@@ -88,8 +83,8 @@ the way Express rejects them.
 ## Raw-body handling for webhooks
 
 The webhook routes are registered inside a dedicated `fastify.register(...)` scope. Within that
-scope (`routes/webhooks.routes.ts`), the plugin removes all content-type parsers and installs a
-single buffer parser, so the webhook handler receives the raw request `Buffer`:
+scope, the plugin removes all content-type parsers and installs a single buffer parser, so the
+webhook handler receives the raw request `Buffer`:
 
 ```ts
 scope.removeAllContentTypeParsers();
@@ -106,8 +101,7 @@ buffer to a UTF-8 string (or an empty string if it is not a buffer) and forwards
 
 ## Error mapping
 
-`payableErrorReply` (`helpers.ts`) is set as Fastify's error handler and delegates to the shared
-mappers:
+`payableErrorReply` is set as Fastify's error handler and delegates to the shared mappers:
 
 ```ts
 export function payableErrorReply(error, _request, reply): void {
@@ -116,8 +110,8 @@ export function payableErrorReply(error, _request, reply): void {
 ```
 
 Status and body follow the same `STATUS_BY_CODE` table and `{ error, message }` shape documented in
-`docs/adapters/22-express.md`. `tests/fastify.test.ts` confirms `INVALID_WEBHOOK_SIGNATURE` maps to
-400 and the placeholder routes map to 501.
+`docs/adapters/22-express.md`. `INVALID_WEBHOOK_SIGNATURE` maps to 400 and the placeholder routes
+map to 501.
 
 ## No built-in authentication
 

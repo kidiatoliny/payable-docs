@@ -21,8 +21,6 @@ Money.of(1000, 'JPY'); // ¥1,000
 Money.of(10.99, 'USD'); // throws TypeError: amount must be an integer in minor units
 ```
 
-From `tests/money.test.ts`:
-
 ```ts
 expect(Money.of(1099, 'USD').amount()).toBe(1099);
 expect(Money.of(1000, 'JPY').amount()).toBe(1000);
@@ -153,8 +151,6 @@ JPY has 0 decimal places, so `1000` minor units format as `¥1,000`; USD has 2, 
 | `precision(code)` | The currency's decimal exponent (number of minor-unit digits). |
 | `normalize(code)` | The canonical (uppercase) code. |
 
-From `tests/currency-manager.test.ts`:
-
 ```ts
 expect(CurrencyManager.precision('USD')).toBe(2);
 expect(CurrencyManager.precision('JPY')).toBe(0);
@@ -184,8 +180,6 @@ Domain builders produce **deterministic, collision-resistant** keys from typed p
 | `forSubscription` | `SubscriptionKeyParts` | `subscription:` |
 | `forRefund` | `RefundKeyParts` | `refund:` |
 | `forWebhook` | `WebhookKeyParts` | `webhook:` |
-
-From `tests/value-objects.test.ts`:
 
 ```ts
 IdempotencyKey.forCharge({
