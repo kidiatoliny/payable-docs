@@ -5,11 +5,10 @@
   "type": "module",
   "description": "Documentation site for @akira-io/payable.",
   "scripts": {
-    "fetch": "node scripts/fetch-docs.mjs",
     "sync": "node scripts/sync-docs.mjs",
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "node scripts/fetch-docs.mjs && node scripts/sync-docs.mjs && astro build && pagefind --site dist",
+    "build": "node scripts/sync-docs.mjs && astro build && pagefind --site dist",
     "preview": "astro preview"
   },
   "dependencies": {
