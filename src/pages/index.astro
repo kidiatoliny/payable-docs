@@ -4,6 +4,7 @@ import { getCollection } from 'astro:content';
 import { buildNav } from '@/lib/nav';
 import { buttonVariants } from '@/components/ui/button';
 import Header from '@/components/Header.astro';
+import Analytics from '@vercel/analytics/astro';
 
 const docs = await getCollection('docs');
 const nav = buildNav(docs);
@@ -58,6 +59,7 @@ const cards = [
       name="description"
       content="Documentation for the framework-agnostic Node.js billing engine."
     />
+    <Analytics />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
