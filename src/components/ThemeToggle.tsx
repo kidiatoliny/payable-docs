@@ -11,6 +11,7 @@ function prefersDark() {
 function apply(mode: Mode) {
   const dark = mode === 'dark' || (mode !== 'light' && prefersDark());
   document.documentElement.classList.toggle('dark', dark);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
 }
 
 export function ThemeToggle() {

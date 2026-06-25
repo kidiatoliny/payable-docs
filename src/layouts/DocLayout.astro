@@ -55,6 +55,7 @@ const pageDescription = description ?? 'Documentation for the framework-agnostic
         mode === 'dark' ||
         (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       document.documentElement.classList.toggle('dark', dark);
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
     </script>
   </head>
   <body class="min-h-screen bg-background text-foreground">
