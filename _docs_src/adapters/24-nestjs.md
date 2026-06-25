@@ -70,32 +70,54 @@ constructor(
 | POST | `subscriptions/:name/cancel-now` | 200 | `cancelNow` | Cancel immediately |
 | POST | `subscriptions/:name/resume` | 200 | `resume` | Resume a canceled subscription |
 | POST | `subscriptions/:name/swap` | 200 | `swap` | Swap to a new price |
-| POST | `customers` | 501 | `customers` | Reserved; throws `NOT_IMPLEMENTED` |
-| GET | `invoices` | 501 | `invoices` | Reserved; throws `NOT_IMPLEMENTED` |
-| GET | `payments` | 501 | `payments` | Reserved; throws `NOT_IMPLEMENTED` |
-| POST | `refunds` | 501 | `refunds` | Reserved; throws `NOT_IMPLEMENTED` |
+| POST | `customers` | 201 | `createCustomer` | Create (or get) a customer at the provider |
+| PATCH | `customers` | 200 | `updateCustomer` | Update a customer's email/name |
+| GET | `customers` | 200 | `getCustomer` | Get a customer by `billableType`+`billableId` |
+| GET | `invoices` | 200 | `invoices` | List a billable's invoices |
+| GET | `payments` | 200 | `payments` | List a billable's payments |
+| POST | `products` | 201 | `createProduct` | Create a product at the provider |
+| PATCH | `products` | 200 | `updateProduct` | Update a product |
+| POST | `prices` | 201 | `createPrice` | Create a price for a product |
+| GET | `subscriptions` | 200 | `subscriptions` | List a billable's subscriptions |
+| GET | `subscriptions/:name` | 200 | `getSubscription` | Get one subscription by name (404 if absent) |
+| GET | `refunds` | 200 | `listRefunds` | List a payment's refunds |
+| POST | `refunds` | 201 | `refunds` | Refund a payment |
 
 ## Scope and parity vs Express
 
-The NestJS adapter is a single controller. Its scope matches Fastify, not Express:
+The NestJS adapter is a single controller exposing the same route set as Express: webhooks, checkout,
+subscription management (`cancel`, `cancel-now`, `resume`, `swap`), subscription reads, customers,
+invoices, payments, products, prices, and refunds (create and list).
 
-- Implemented: webhooks, checkout, subscription management (`cancel`, `cancel-now`, `resume`,
-  `swap`).
-- Reserved (throw `PayableError.notImplemented(...)`, mapped to 501): `customers`, `invoices`,
-  `payments`, and `refunds`.
+Every JSON route validates its body or query with the shared Zod schemas in
+`src/presentation/shared/schemas.ts` via `parseBody`, so a malformed body is rejected with
+`VALIDATION_FAILED` (HTTP 422), the same as Express.
+
+## Request body limits
+
+Unlike the Express and Fastify adapters - which apply a built-in 64KB cap on JSON routes and a 1MB
+cap on webhook routes - the NestJS adapter sets no body-size limit of its own. NestJS owns the HTTP
+server and its body parser, so the controller relies entirely on the host application's parser
+configuration. A default Nest deployment is bounded by the platform parser's default (~100KB for
+the Express platform), but you do not get the adapter's 64KB/1MB DoS guard automatically.
+
+Configure equivalent limits on the host app to match the other adapters:
 
 ```ts
-@Post('refunds')
-refunds(): never {
-  throw PayableError.notImplemented('POST /refunds');
-}
+// Express platform (Nest 10+): set per-parser limits
+const app = await NestFactory.create<NestExpressApplication>(AppModule);
+app.useBodyParser('json', { limit: '64kb' });
+app.useBodyParser('raw', { limit: '1mb' }); // for the raw webhook route
+
+// Fastify platform: cap the body at registration
+const app = await NestFactory.create<NestFastifyApplication>(
+  AppModule,
+  new FastifyAdapter({ bodyLimit: 1024 * 1024 }),
+);
 ```
 
-Only Express implements `POST /refunds`. In NestJS (as in Fastify) `/refunds` returns 501. To
-process refunds, use the Express adapter or call `payable.refund(...)` directly.
-
-Like Fastify, the controller casts request bodies to TypeScript interfaces rather than validating
-with the shared Zod schemas, so malformed bodies are not rejected with `VALIDATION_FAILED`.
+Keep the webhook route's limit (1MB) higher than the JSON routes' limit (64KB), and remember the
+webhook route also requires `{ rawBody: true }` (see below).
 
 ## Raw body requirement
 
@@ -188,7 +210,7 @@ adapter.
 - Forgetting `rawBody: true` yields an empty webhook payload and a verification failure.
 - Multiple registered providers with no `:provider` route param surface
   `WEBHOOK_PROVIDER_AMBIGUOUS` (400) from the facade.
-- The reserved 501 routes are intentional placeholders.
+- `GET subscriptions/:name` returns 404 when the named subscription does not exist.
 
 ---
 

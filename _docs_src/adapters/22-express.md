@@ -20,6 +20,7 @@ function createExpressPayableRoutes(
 
 interface ExpressPayableOptions {
   webhookSignatureHeader?: string; // default: 'stripe-signature'
+  authenticate?: RequestHandler; // optional auth middleware, applied after webhook routes
 }
 ```
 
@@ -49,13 +50,22 @@ Every method and path below is registered by the adapter. Paths are relative to 
 | POST | `/subscriptions/:name/resume` | 200 | Resume a canceled subscription |
 | POST | `/subscriptions/:name/swap` | 200 | Swap to a new price |
 | POST | `/refunds` | 201 | Refund a payment |
-| POST | `/customers` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
-| GET | `/invoices` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
-| GET | `/payments` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
+| POST | `/customers` | 201 | Create (or get) a customer at the provider |
+| PATCH | `/customers` | 200 | Update a customer's email/name |
+| GET | `/customers` | 200 | Get a customer by `billableType`+`billableId` (query) |
+| GET | `/invoices` | 200 | List a billable's invoices (query: billableType, billableId, limit?) |
+| GET | `/payments` | 200 | List a billable's payments (query: billableType, billableId) |
+| POST | `/products` | 201 | Create a product at the provider |
+| PATCH | `/products` | 200 | Update a product |
+| POST | `/prices` | 201 | Create a price for a product |
+| GET | `/subscriptions` | 200 | List a billable's subscriptions (query: billableType, billableId, limit?) |
+| GET | `/subscriptions/:name` | 200 | Get one subscription by name (404 if absent) |
+| GET | `/refunds` | 200 | List a payment's refunds (query: paymentId, limit?) |
 
-Express wires `POST /refunds` to a working implementation. The `/customers`, `/invoices`, and
-`/payments` handlers are reserved endpoints - each immediately throws
-`PayableError.notImplemented(...)`, which the error handler maps to HTTP 501.
+All routes above are wired to working implementations. `/customers` (POST/PATCH/GET), `/invoices`,
+and `/payments` resolve a `Payable` resource for the request's billable (and tenant, when tenancy is
+on). The `GET` read routes take `billableType` and `billableId` as query parameters; `/invoices`
+also accepts an optional `limit`.
 
 ## Request bodies
 
@@ -64,8 +74,8 @@ in `src/presentation/shared/schemas.ts` (`checkoutBodySchema`, `manageSubscripti
 `swapSubscriptionBodySchema`). A validation failure throws `PayableError` with code
 `VALIDATION_FAILED`, mapped to HTTP 422.
 
-The refund route uses a manual check rather than a Zod schema: a missing or empty `paymentId`
-throws `VALIDATION_FAILED` (422). The body shape is
+The refund route validates the body with `refundBodySchema` via `parseBody` (Zod): an invalid or
+missing `paymentId` throws `VALIDATION_FAILED` (422). The body shape is
 `{ paymentId: string, amount?: { amount: number, currency: string }, reason?: string }`; `amount`
 is converted to a `Money` value object before reaching `payable.refund(...)`.
 
@@ -153,8 +163,16 @@ routes is unprotected at the adapter level:
   `payable.receiveWebhook`), not by request authentication.
 
 Authenticating the request and verifying ownership of the billable or payment is the caller's
-responsibility. Add your own middleware ahead of the Payable router (after any webhook-safe
-ordering concerns). See `docs/26-security.md`.
+responsibility. Pass an `authenticate` middleware in `ExpressPayableOptions` to have it applied
+inside the router after the webhook routes and before checkout/subscription/refund, or mount your
+own middleware ahead of the Payable router. See `docs/26-security.md`.
+
+```ts
+app.use(
+  '/payable',
+  createExpressPayableRoutes(payable, { authenticate: requireApiKey }),
+);
+```
 
 ## Mounting example
 
@@ -192,7 +210,7 @@ app.use(
   `WEBHOOK_PROVIDER_AMBIGUOUS` (400) from the facade - route such webhooks to `/webhooks/:provider`.
 - Webhook receipt requires a storage driver; without one the facade throws
   `WEBHOOK_STORAGE_REQUIRED` (500).
-- The reserved 501 endpoints are intentional placeholders, not bugs.
+- `GET /subscriptions/:name` returns 404 when the named subscription does not exist.
 
 ---
 
