@@ -1,5 +1,6 @@
 ---
 title: "Overview"
+description: "@akira-io/payable is a billing engine for Node.js that stays out of your stack's way. It is framework, provider, storage, and queue agnostic: the core..."
 sidebar:
   order: 1
 ---

@@ -4,10 +4,37 @@ import { getCollection } from 'astro:content';
 import { buildNav } from '@/lib/nav';
 import { buttonVariants } from '@/components/ui/button';
 import Header from '@/components/Header.astro';
-import Analytics from '@vercel/analytics/astro';
+import SeoHead from '@/components/SeoHead.astro';
 
 const docs = await getCollection('docs');
 const nav = buildNav(docs);
+
+const siteUrl = Astro.site?.href;
+const homeTitle = 'payable - the framework-agnostic billing engine for Node.js';
+const homeDescription =
+  'payable is a framework, provider, storage, and queue agnostic billing engine for Node.js. Wire Stripe, Paddle, or SISP, your storage, and your framework while the core owns checkout, subscriptions, invoices, webhooks, and reconciliation.';
+
+const websiteSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'payable docs',
+  url: siteUrl,
+  description: homeDescription,
+  inLanguage: 'en',
+  publisher: { '@type': 'Organization', name: 'akira-io', url: 'https://github.com/akira-io' },
+};
+
+const softwareSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: '@akira-io/payable',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Node.js',
+  description: homeDescription,
+  url: siteUrl,
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  author: { '@type': 'Organization', name: 'akira-io', url: 'https://github.com/akira-io' },
+};
 
 const cards = [
   {
@@ -52,32 +79,15 @@ const cards = [
 <!doctype html>
 <html lang="en" class="dark">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>payable docs</title>
-    <meta
-      name="description"
-      content="Documentation for the framework-agnostic Node.js billing engine."
+    <SeoHead title={homeTitle} description={homeDescription} type="website" />
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify(websiteSchema)}
     />
-    <Analytics />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify(softwareSchema)}
     />
-    <script is:inline>
-      const mode = localStorage.getItem('theme') || 'system';
-      const dark =
-        mode === 'dark' ||
-        (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      document.documentElement.classList.toggle('dark', dark);
-      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    </script>
   </head>
   <body class="min-h-screen bg-background text-foreground">
     <Header nav={nav} />

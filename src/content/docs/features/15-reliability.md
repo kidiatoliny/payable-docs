@@ -1,5 +1,6 @@
 ---
 title: "Reliability"
+description: "Payable's reliability primitives keep state consistent when work is retried, replayed, or run concurrently: a transactional outbox for at-least-once event..."
 sidebar:
   order: 15
 ---

@@ -1,7 +1,8 @@
 ---
 title: "Security"
+description: "This page describes the security boundaries the library does and does not enforce. The short version: @akira-io/payable performs no request authentication..."
 sidebar:
-  order: 26
+  order: 27
 ---
 
 This page describes the security boundaries the library does and does not enforce. The short
@@ -61,14 +62,32 @@ if (!this.policy.authorize(context)) {
 ```
 
 The other policies (`can-create-checkout`, `can-create-subscription`, `can-cancel-subscription`,
-`can-resume-subscription`, `can-refund-payment`) are exported from the package but are not invoked
-by the checkout, subscription, or refund actions. Do not rely on them to gate HTTP requests; they
-are building blocks you can call yourself, and they do not run automatically on the adapter routes.
+`can-resume-subscription`, `can-refund-payment`) are internal building blocks; they are not part of
+the package's public exports and are not invoked by the checkout, subscription, or refund actions.
+Do not rely on them to gate HTTP requests; they do not run automatically on the adapter routes.
 
 The policy layer is authorization for business operations (notably webhook replay), driven by an
 explicit context. It is not request authentication, and it is not applied to
 checkout/subscription/refund routes by default. Request authentication and ownership-of-billable
 checks remain entirely on you.
+
+When `authorization: { enabled: true }` is configured, charge/checkout/subscription/refund calls
+require an `AuthorizationContext` with `allowed: true` and a non-empty `actorId`. Each HTTP adapter
+exposes a `resolveAuthorization(req)` option (sibling to `resolveTenant`) that maps the authenticated
+request to that context and threads it into the write calls:
+
+```ts
+createExpressPayableRoutes(payable, {
+  resolveAuthorization: (req) => ({
+    allowed: true,
+    actorId: req.user.id,
+    tenantId: req.user.tenantId,
+  }),
+});
+```
+
+The same option exists on the Fastify plugin and the Nest module. Without it, every write returns
+`AUTHORIZATION_DENIED` (HTTP 403) while authorization is enabled.
 
 ## Webhook signature verification
 

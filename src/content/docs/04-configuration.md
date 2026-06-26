@@ -1,5 +1,6 @@
 ---
 title: "Configuration"
+description: "All configuration is passed to createPayable(config), which calls resolveConfig(config) to produce a ResolvedConfig. This page documents every field of..."
 sidebar:
   order: 4
 ---
@@ -113,7 +114,7 @@ if (entries.length === 0) {
 - **Required.** Optional.
 - **Default.** `undefined`.
 - **Behavior.** Used to encrypt/decrypt sensitive stored values when supplied. The bundled
-  implementation is `NodeEncryptionDriver`. See [26-security](/26-security/).
+  implementation is `NodeEncryptionDriver`. See [27-security](/27-security/).
 
 ### `idempotency?: IdempotencyConfig`
 

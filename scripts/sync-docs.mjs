@@ -51,6 +51,41 @@ function extractTitle(lines) {
   return { title: null, index: -1 };
 }
 
+function extractDescription(body) {
+  const block = [];
+  let inCode = false;
+  for (const line of body.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('```')) {
+      inCode = !inCode;
+      continue;
+    }
+    if (inCode) continue;
+    if (block.length === 0) {
+      const isBlockMarker =
+        trimmed === '' ||
+        /^\s/.test(line) ||
+        /^(#|>|\||[-*]\s|\d+\.\s)/.test(trimmed) ||
+        trimmed.startsWith('<');
+      if (isBlockMarker) continue;
+      block.push(trimmed);
+      continue;
+    }
+    if (trimmed === '') break;
+    block.push(trimmed);
+  }
+  const text = block
+    .join(' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/[*_]{1,2}([^*_]+)[*_]{1,2}/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length < 40) return '';
+  if (text.length <= 160) return text;
+  return text.slice(0, 157).replace(/\s+\S*$/, '').replace(/[.,;:\s]+$/, '') + '...';
+}
+
 async function main() {
   if (!existsSync(SOURCE)) throw new Error(`source not found: ${SOURCE}`);
   await rm(OUT, { recursive: true, force: true });
@@ -71,8 +106,9 @@ async function main() {
     body = body.replace(/\[([^\]]+?)\.md\]\(/g, '[$1](');
     const safeTitle = (title ?? relPath).replace(/"/g, '\\"');
     const order = Number(relPath.match(/(\d+)/)?.[1] ?? 999);
+    const description = extractDescription(body).replace(/"/g, '\\"');
 
-    const front = `---\ntitle: "${safeTitle}"\nsidebar:\n  order: ${order}\n---\n\n`;
+    const front = `---\ntitle: "${safeTitle}"\n${description ? `description: "${description}"\n` : ''}sidebar:\n  order: ${order}\n---\n\n`;
     const dest = join(OUT, relPath);
     await mkdir(dirname(dest), { recursive: true });
     await writeFile(dest, front + body.trimEnd() + '\n');

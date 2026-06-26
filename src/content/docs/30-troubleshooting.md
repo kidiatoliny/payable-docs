@@ -1,7 +1,8 @@
 ---
 title: "Troubleshooting"
+description: "Common failures, their causes, resolutions, and how to diagnose them. Error codes referenced here map to HTTP statuses."
 sidebar:
-  order: 29
+  order: 30
 ---
 
 Common failures, their causes, resolutions, and how to diagnose them. Error codes referenced here

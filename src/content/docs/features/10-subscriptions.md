@@ -1,5 +1,6 @@
 ---
 title: "Subscriptions"
+description: "Payable manages the full subscription lifecycle: create, swap the price, change quantity, cancel at period end (grace period), cancel immediately, and..."
 sidebar:
   order: 10
 ---

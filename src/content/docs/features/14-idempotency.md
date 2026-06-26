@@ -1,5 +1,6 @@
 ---
 title: "Idempotency"
+description: "A retried request must not produce a second charge, a second subscription, or a second refund. Payable guards mutating operations with an idempotency layer..."
 sidebar:
   order: 14
 ---
@@ -135,7 +136,13 @@ A record has `status` of `processing | completed | failed | expired`, the `reque
 ## Execution flow
 
 `IdempotencyService` (`src/application/services/idempotency/idempotency-service.ts`) ties it
-together. Options: `lockTtlMs` (default `30_000`) and `retryFailed` (default `true`).
+together. Service options: `lockTtlMs` (default `30_000`) and `retryFailed` (default `true`).
+
+`lockTtlMs` is the window before a held lock is considered stale. Set it comfortably above the
+slowest provider call so a long-running operation never lapses while in flight — a lapsed lock now
+fails closed (see above) rather than re-running. Any single execution can override the service
+default per operation with `lockTtlMs` on the `IdempotentExecution`, so a slow charge can claim a
+longer lock than a fast lookup without widening the window for everything.
 
 ```ts
 async execute<T>(execution: IdempotentExecution<T>): Promise<T> {
@@ -164,11 +171,14 @@ return { handled: false };
 - **Completed** → the cached `response` is replayed; the operation does **not** run again.
 - **Processing and still locked** → `IdempotencyInProgressError`. A concurrent run holds the lock.
 - **Failed with `retryFailed: false`** → `IdempotencyConflictError`.
-- Otherwise (no record, failed with retry allowed, processing with an expired lock) → fall through
-  and run.
+- Otherwise (no record, failed with retry allowed) → fall through and run.
 
-`isLocked` compares `lockedUntil` against the clock; once `lockedUntil` has passed, a `processing`
-record no longer blocks and the operation may be re-attempted.
+`isLocked` compares `lockedUntil` against the clock. A `processing` record whose `lockedUntil` has
+passed is **stale**: the original holder either crashed mid-flight (its side effect may already have
+committed) or is still running past the lock TTL. The service does **not** blindly re-run it. By
+default a stale `processing` record fails closed with `IdempotencyInProgressError`, so a money-moving
+operation is never silently executed twice. Set `reclaimStaleProcessing: true` on the execution to
+opt in to reclaiming and re-running a stale lock when the operation is known safe to repeat.
 
 ### run - acquiring the lock and executing
 
@@ -179,6 +189,9 @@ if (!acquired) {
   const existing = await this.store.find(execution.key, execution.tenantId);
   const replay = this.replay<T>(existing, requestHash, execution.key);
   if (replay.handled) return replay.value as T;
+  if (existing?.status === 'processing' && !execution.reclaimStaleProcessing) {
+    throw new IdempotencyInProgressError(execution.key);
+  }
   const claimed = await this.store.takeOver(record, execution.tenantId);
   if (!claimed) throw new IdempotencyInProgressError(execution.key);
 }
@@ -194,9 +207,10 @@ try {
 
 - `acquire` atomically inserts the `processing` record with `lockedUntil = now + lockTtlMs`. Only
   one acquirer wins, even with a null tenant.
-- If acquisition fails, the service re-checks: the winner may already have completed (replay), or
-  its lock may have expired, in which case `takeOver` claims the stale lock. If neither, the caller
-  gets `IdempotencyInProgressError`.
+- If acquisition fails, the service re-checks: the winner may already have completed (replay). A
+  stale `processing` record (expired lock) fails closed with `IdempotencyInProgressError` unless
+  `reclaimStaleProcessing` is set; a `failed`-with-retry or expired record is reclaimed via
+  `takeOver`. If `takeOver` claims nothing, the caller gets `IdempotencyInProgressError`.
 - On success the record is marked `completed` with the response cached. On failure it is marked
   `failed` and the original error is rethrown - so with `retryFailed: true` (default) a later retry
   re-runs the operation.
@@ -253,7 +267,8 @@ Reusing `charge:2` with a different body throws `IdempotencyConflictError`.
 | Expired record, different request body            | Still `IdempotencyConflictError` - hash check first  |
 | Concurrent run, lock still held                   | `IdempotencyInProgressError`                         |
 | Concurrent acquire, two callers                   | One wins via `acquire`; loser replays or takes over  |
-| Lock expired (`lockedUntil` passed)               | Stale lock; `takeOver` reclaims and runs             |
+| Stale `processing` lock (`lockedUntil` passed)    | Fails closed `IdempotencyInProgressError` by default |
+| Stale lock with `reclaimStaleProcessing: true`    | `takeOver` reclaims the stale lock and re-runs        |
 | Operation throws                                  | Record marked `failed`; error rethrown               |
 | Failed record, `retryFailed: true` (default)      | Re-runs on the next attempt                          |
 | Failed record, `retryFailed: false`               | `IdempotencyConflictError`                           |

@@ -1,5 +1,6 @@
 ---
 title: "Value Objects"
+description: "Value objects live in src/domain/value-objects/. They wrap a primitive (or a backing library) behind a small, validated, immutable type. Each one uses a..."
 sidebar:
   order: 6
 ---

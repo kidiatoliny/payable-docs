@@ -1,5 +1,6 @@
 ---
 title: "Getting Started"
+description: "Install only the peers for the features you use:"
 sidebar:
   order: 3
 ---

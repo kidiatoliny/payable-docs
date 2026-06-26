@@ -1,5 +1,6 @@
 ---
 title: "Domain Model"
+description: "The domain model is the set of TypeScript interfaces in src/domain/entities/. Entities are plain, fully readonly data contracts: they hold no methods and no..."
 sidebar:
   order: 5
 ---

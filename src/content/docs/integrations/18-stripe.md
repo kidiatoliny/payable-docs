@@ -1,5 +1,6 @@
 ---
 title: "Stripe Provider"
+description: "StripeProvider (src/infrastructure/providers/stripe/stripe-provider.ts) is the reference implementation of PaymentProvider. It implements the base contract..."
 sidebar:
   order: 18
 ---
@@ -39,20 +40,21 @@ const payable = createPayable({ providers: { stripe }, /* storage, queue, ... */
 
 ```ts
 capabilities(): ProviderCapabilities {
-  return {
-    checkout: true,
-    subscriptions: true,
-    trials: true,
-    refunds: true,
-    coupons: true,
-    billingPortal: true,
-    meteredBilling: false,
-    invoicePdf: true,
-  };
+  return new Set([
+    'checkout',
+    'subscriptions',
+    'trials',
+    'refunds',
+    'coupons',
+    'billingPortal',
+    'invoicePdf',
+    'customers',
+    'catalog',
+  ]);
 }
 ```
 
-Stripe supports everything except `meteredBilling`. It is the only built-in provider that implements
+Stripe supports everything except `meteredBilling` (absent from the set). It is the only built-in provider that implements
 `InvoiceCapable` (`listInvoices`, `downloadInvoicePdf`) and exposes `invoicePdf: true`.
 
 ## Subscription handling
