@@ -1,5 +1,6 @@
 ---
 title: "Fastify Adapter"
+description: "@akira-io/payable/fastify exposes createFastifyPayablePlugin(payable, options?), which returns a FastifyPluginAsync. Register it on a Fastify instance..."
 sidebar:
   order: 23
 ---
@@ -30,9 +31,8 @@ The plugin performs, in order:
 
 1. `fastify.setErrorHandler(payableErrorReply)`.
 2. Registers webhook routes inside a nested `fastify.register(...)` scope.
-3. Registers checkout routes.
-4. Registers subscription routes.
-5. Registers placeholder routes.
+3. Registers checkout, subscription, refund, customer, read (invoices/payments/subscriptions/refunds),
+   and catalog (products/prices) routes inside an authenticated scope.
 
 ## Routes registered
 
@@ -45,40 +45,29 @@ The plugin performs, in order:
 | POST | `/subscriptions/:name/cancel-now` | 200 | Cancel immediately |
 | POST | `/subscriptions/:name/resume` | 200 | Resume a canceled subscription |
 | POST | `/subscriptions/:name/swap` | 200 | Swap to a new price |
-| POST | `/customers` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
-| GET | `/invoices` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
-| GET | `/payments` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
-| POST | `/refunds` | 501 | Reserved; throws `NOT_IMPLEMENTED` |
+| POST | `/customers` | 201 | Create (or get) a customer at the provider |
+| PATCH | `/customers` | 200 | Update a customer's email/name |
+| GET | `/customers` | 200 | Get a customer by `billableType`+`billableId` (query) |
+| GET | `/invoices` | 200 | List a billable's invoices (query: billableType, billableId, limit?) |
+| GET | `/invoices/:id/pdf` | 200 | Download an invoice PDF (`application/pdf`; 404 if absent, 422 if the provider lacks `invoicePdf`) |
+| GET | `/payments` | 200 | List a billable's payments (query: billableType, billableId) |
+| POST | `/products` | 201 | Create a product at the provider |
+| PATCH | `/products` | 200 | Update a product |
+| POST | `/prices` | 201 | Create a price for a product |
+| GET | `/subscriptions` | 200 | List a billable's subscriptions (query: billableType, billableId, limit?) |
+| GET | `/subscriptions/:name` | 200 | Get one subscription by name (404 if absent) |
+| POST | `/refunds` | 201 | Refund a payment |
+| GET | `/refunds` | 200 | List a payment's refunds (query: paymentId, limit?) |
 
-## Parity gap vs Express
+## Parity with Express
 
-This adapter is a strict subset of the Express adapter. It implements webhooks, checkout, and
-subscription management (`cancel`, `cancel-now`, `resume`, `swap`), but does not implement the full
-route set.
+This adapter exposes the same route set as Express: webhooks, checkout, subscription management
+(`cancel`, `cancel-now`, `resume`, `swap`), subscription reads, customers, invoices, payments,
+products, prices, and refunds (create and list).
 
-What Fastify does NOT implement:
-
-- `POST /refunds` - Express runs the real refund path; Fastify's `/refunds` is a placeholder that
-  throws `PayableError.notImplemented('POST /refunds')` (HTTP 501).
-- `POST /customers`, `GET /invoices`, `GET /payments` - placeholders that throw `NOT_IMPLEMENTED`
-  (HTTP 501), matching Express's reserved endpoints.
-
-All four placeholder routes:
-
-```ts
-scope.post('/customers', async () => { throw PayableError.notImplemented('POST /customers'); });
-scope.get('/invoices', async () => { throw PayableError.notImplemented('GET /invoices'); });
-scope.get('/payments', async () => { throw PayableError.notImplemented('GET /payments'); });
-scope.post('/refunds', async () => { throw PayableError.notImplemented('POST /refunds'); });
-```
-
-To process refunds over HTTP today, use the Express adapter or call `payable.refund(...)` directly.
-See `docs/29-troubleshooting.md`.
-
-Unlike the Express checkout/subscription routes, the Fastify checkout and subscription handlers do
-not run the shared Zod schemas; they cast the request body to a TypeScript interface
-(`request.body as CheckoutRequestBody`). Malformed bodies are not rejected with `VALIDATION_FAILED`
-the way Express rejects them.
+Every JSON route parses its body or query with the shared Zod schemas in
+`src/presentation/shared/schemas.ts` via `parseBody`, so a malformed body is rejected with
+`VALIDATION_FAILED` (HTTP 422), the same as Express.
 
 ## Raw-body handling for webhooks
 
@@ -110,15 +99,14 @@ export function payableErrorReply(error, _request, reply): void {
 ```
 
 Status and body follow the same `STATUS_BY_CODE` table and `{ error, message }` shape documented in
-`docs/adapters/22-express.md`. `INVALID_WEBHOOK_SIGNATURE` maps to 400 and the placeholder routes
-map to 501.
+`docs/adapters/22-express.md`. `INVALID_WEBHOOK_SIGNATURE` maps to 400 and `VALIDATION_FAILED` to 422.
 
 ## No built-in authentication
 
 As with Express, the plugin installs no authentication or authorization. The checkout and
 subscription routes are unprotected; webhook routes are protected only by provider signature
 verification. The caller must authenticate the request and verify ownership of the billable. See
-`docs/26-security.md`.
+`docs/27-security.md`.
 
 ## Registration example
 
@@ -151,4 +139,4 @@ The `prefix` option is Fastify's standard register option; all routes above are 
 - Multiple registered providers with no `:provider` segment surface `WEBHOOK_PROVIDER_AMBIGUOUS`
   (400) from the facade.
 - Webhook receipt requires a storage driver (`WEBHOOK_STORAGE_REQUIRED`, 500, when absent).
-- A request to `/refunds` returns 501, not 404 - the route exists but is unimplemented.
+- `GET /subscriptions/:name` returns 404 when the named subscription does not exist.

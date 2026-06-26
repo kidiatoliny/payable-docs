@@ -1,5 +1,6 @@
 ---
 title: "Multi-Tenancy"
+description: "Payable can isolate every persisted record by tenant, so one Payable instance can serve many customers of the integrating application (an \"agency hosting..."
 sidebar:
   order: 16
 ---

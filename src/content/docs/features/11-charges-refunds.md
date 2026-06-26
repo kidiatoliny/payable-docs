@@ -1,5 +1,6 @@
 ---
 title: "Charges and Refunds"
+description: "A charge is a one-off payment against a customer; a refund returns money against a recorded payment, partially or in full. Both persist locally and track..."
 sidebar:
   order: 11
 ---

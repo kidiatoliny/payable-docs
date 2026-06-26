@@ -1,7 +1,8 @@
 ---
 title: "Development"
+description: "How to work on @akira-io/payable: structure, workflow, standards, and the test/lint/build loop."
 sidebar:
-  order: 27
+  order: 28
 ---
 
 How to work on `@akira-io/payable`: structure, workflow, standards, and the test/lint/build loop.

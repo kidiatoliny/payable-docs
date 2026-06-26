@@ -1,5 +1,6 @@
 ---
 title: "Webhooks"
+description: "Webhooks are how a payment provider tells Payable that something happened out of band - a checkout completed, a subscription renewed, a payment failed..."
 sidebar:
   order: 13
 ---

@@ -1,5 +1,6 @@
 ---
 title: "Architecture"
+description: "Payable is organized into four layers plus a support layer, matching the top-level directories under src/."
 sidebar:
   order: 2
 ---

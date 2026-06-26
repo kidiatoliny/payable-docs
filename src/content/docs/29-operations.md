@@ -1,7 +1,8 @@
 ---
 title: "Operations"
+description: "Building, releasing, publishing, and recovery for @akira-io/payable."
 sidebar:
-  order: 28
+  order: 29
 ---
 
 Building, releasing, publishing, and recovery for `@akira-io/payable`.

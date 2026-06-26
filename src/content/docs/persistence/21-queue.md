@@ -1,5 +1,6 @@
 ---
 title: "Queue"
+description: "Background work (primarily webhook processing) is dispatched through the QueueDriver contract. The engine ships two implementations: a synchronous..."
 sidebar:
   order: 21
 ---

@@ -1,7 +1,8 @@
 ---
 title: "Data Flows"
+description: "This page traces the main runtime paths through the system, from HTTP entry to provider, storage, queue, and event bus. Each flow names the real components..."
 sidebar:
-  order: 25
+  order: 26
 ---
 
 This page traces the main runtime paths through the system, from HTTP entry to provider, storage,

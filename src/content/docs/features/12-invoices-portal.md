@@ -1,5 +1,6 @@
 ---
 title: "Invoices and Billing Portal"
+description: "This page covers reading a customer's invoices, downloading an invoice PDF, and opening the provider-hosted billing portal. All three depend on optional..."
 sidebar:
   order: 12
 ---
