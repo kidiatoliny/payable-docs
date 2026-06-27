@@ -7,7 +7,8 @@ const search = await readFile(new URL('../src/components/Search.tsx', import.met
 assert.match(header, /h-14.*sm:h-16/s);
 assert.match(header, /px-3.*sm:px-6/s);
 assert.match(header, /hidden.*sm:inline-flex/s);
-assert.match(header, /hidden.*md:inline-flex/s);
+assert.match(header, /github\.com\/akira-io\/payable/);
+assert.match(header, /<span class="hidden sm:inline">GitHub<\/span>/);
 assert.match(header, /Beta documentation\./);
 assert.match(header, /APIs may change before/);
 assert.match(search, /w-9.*md:w-64/s);
