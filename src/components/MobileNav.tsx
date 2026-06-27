@@ -11,7 +11,7 @@ export function MobileNav({ nav, currentSlug }: { nav: NavGroup[]; currentSlug: 
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Trigger
         aria-label="Open navigation"
-        className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground lg:hidden"
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground lg:hidden"
       >
         <Menu className="size-5" />
       </DialogPrimitive.Trigger>
