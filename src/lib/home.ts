@@ -1,73 +1,53 @@
-export interface IconCard {
+export interface DocCard {
   title: string;
   description: string;
   path: string;
-}
-
-export interface DocCard extends IconCard {
   href: string;
 }
 
-export const heroCode = [
-  `<span class="text-primary">import</span> { createPayable, Money, StripeProvider } <span class="text-primary">from</span> <span class="text-accent-foreground">'@akira-io/payable'</span>;`,
-  ``,
-  `<span class="text-primary">const</span> payable = createPayable({`,
-  `  providers: {`,
-  `    stripe: <span class="text-primary">new</span> StripeProvider({`,
-  `      secretKey: process.env.STRIPE_SECRET_KEY!,`,
-  `      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,`,
-  `    }),`,
-  `  },`,
-  `});`,
-  ``,
-  `<span class="text-primary">const</span> session = <span class="text-primary">await</span> payable`,
-  `  .customer(billable)`,
-  `  .newSubscription(<span class="text-accent-foreground">'default'</span>)`,
-  `  .price(<span class="text-accent-foreground">'price_pro_monthly'</span>)`,
-  `  .trialDays(<span class="text-accent-foreground">14</span>)`,
-  `  .checkout({ successUrl, cancelUrl });`,
-].join('\n');
+export interface Capability {
+  title: string;
+  description: string;
+}
 
-export const features: IconCard[] = [
+export const features: Capability[] = [
   {
     title: 'Provider agnostic',
-    description:
-      'Stripe and Paddle behind one PaymentProvider contract. Application code never imports a provider SDK.',
-    path: 'M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z',
+    description: 'Stripe and Paddle behind one contract. App code never imports a provider SDK.',
   },
   {
     title: 'Float-free money',
-    description:
-      'Every amount is a Money value object in minor units, backed by Dinero.js. Monetary logic never touches floats.',
-    path: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+    description: 'Amounts live in minor units, backed by Dinero.js. Logic never touches floats.',
   },
   {
     title: 'Webhooks, end to end',
-    description:
-      'Verify signatures, normalize, dedupe, process async, reconcile local state, and replay provider events.',
-    path: 'M4 4v6h6M20 20v-6h-6M20 8a8 8 0 0 0-14-3M4 16a8 8 0 0 0 14 3',
+    description: 'Verify, normalize, dedupe, process, reconcile, and replay provider events.',
   },
   {
     title: 'Reliable by default',
-    description:
-      'Idempotency on by default, an immutable audit log, and a transactional outbox for at-least-once delivery.',
-    path: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+    description: 'Idempotency on by default, an immutable audit log, and a transactional outbox.',
   },
   {
     title: 'Your storage and queue',
-    description:
-      'Knex storage with migrate(db), plus synchronous or BullMQ queue drivers. The core depends on neither.',
-    path: 'M21 5c0 1.66-4 3-9 3S3 6.66 3 5s4-3 9-3 9 1.34 9 3zM3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5M3 12c0 1.66 4 3 9 3s9-1.34 9-3',
+    description: 'Knex storage with migrate(db), plus a sync or BullMQ queue. Core depends on neither.',
   },
   {
     title: 'HTTP adapters',
-    description:
-      'Express, Fastify, and NestJS, each on its own subpath export. Mount the routes into the stack you already run.',
-    path: 'M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0zM12 17v5',
+    description: 'Express, Fastify, and NestJS, each on its own subpath export. Mount and go.',
   },
 ];
 
-export const integrations = ['Stripe', 'Paddle', 'SISP', 'Knex', 'BullMQ', 'Express', 'Fastify', 'NestJS'];
+export const integrations = [
+  'Stripe',
+  'Paddle',
+  'SISP',
+  'Knex',
+  'Prisma',
+  'BullMQ',
+  'Express',
+  'Fastify',
+  'NestJS',
+];
 
 export const docCards: DocCard[] = [
   {
