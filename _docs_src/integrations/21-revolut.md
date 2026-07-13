@@ -36,13 +36,12 @@ No SDK or peer dependency is required.
 
 Dispute operations and their production-only restriction are documented in
 [Revolut Disputes](21a-revolut-disputes.md).
-Payout list and retrieval behavior are documented in [Revolut Payouts](21b-revolut-payouts.md).
 
 ## Declared capabilities
 
 `capabilities()` returns `checkout`, `refunds`, `webhooks`, `customers`, `paymentMethods`, `disputes`,
-`payouts`, and `subscriptions`. The provider implements the corresponding optional contracts and
-intentionally does not declare `catalog`, `charges`, `billingPortal`, or `invoicePdf`.
+and `subscriptions`. The provider implements the corresponding optional contracts and intentionally
+does not declare `catalog`, `charges`, `billingPortal`, or `invoicePdf`.
 
 ## Customers
 
