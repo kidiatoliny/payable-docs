@@ -49,6 +49,7 @@ method or throws `ProviderCapabilityNotSupportedError`.
 | `PaymentMethodCapable` | `listPaymentMethods(input)`, `deletePaymentMethod(input, ctx)` | `isPaymentMethodCapable(provider)` |
 | `DisputeCapable` | `listDisputes(input)`, `retrieveDispute(id)`, `acceptDispute(id, ctx)` | `isDisputeCapable(provider)` |
 | `PayoutCapable` | `listPayouts(input)`, `retrievePayout(id)` | `isPayoutCapable(provider)` |
+| `ProviderWebhookEndpointManagementCapable` | provider webhook endpoint CRUD with bounded listing | `isProviderWebhookEndpointManagementCapable(provider)` |
 
 Notes on the non-obvious members:
 
@@ -99,7 +100,8 @@ callback flow, not an asynchronous provider webhook.
 | `invoicePdf` (`InvoiceCapable`) | yes | no | no | no |
 | `paymentMethods` (`PaymentMethodCapable`) | yes | no | no | yes |
 | `disputes` (`DisputeCapable`) | yes | no | no | yes (production only) |
-| `payouts` (`PayoutCapable`) | yes | no | no | planned |
+| `payouts` (`PayoutCapable`) | yes | no | no | yes |
+| `webhookEndpointManagement` | planned | no | no | planned |
 
 ## The capabilities system
 
@@ -122,6 +124,7 @@ export type ProviderCapability =
   | 'paymentMethods'
   | 'disputes'
   | 'payouts'
+  | 'webhookEndpointManagement'
   | 'catalog';
 
 export type ProviderCapabilityValue = ProviderCapability | (string & {});
