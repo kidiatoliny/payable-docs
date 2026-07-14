@@ -1,19 +1,16 @@
 ---
 import '@/styles/globals.css';
-import { getCollection } from 'astro:content';
-import { buildNav } from '@/lib/nav';
-import { buttonVariants } from '@/components/ui/button';
-import Header from '@/components/Header.astro';
+import '@/styles/landing.css';
 import SeoHead from '@/components/SeoHead.astro';
-import { features, integrations, docCards } from '@/lib/home';
-
-const docs = await getCollection('docs');
-const nav = buildNav(docs);
+import LandingHeader from '@/components/landing/LandingHeader.astro';
+import LandingHero from '@/components/landing/LandingHero.astro';
+import EngineLifecycle from '@/components/landing/EngineLifecycle.astro';
+import LandingFooter from '@/components/landing/LandingFooter.astro';
 
 const siteUrl = Astro.site?.href;
-const homeTitle = 'payable - the framework-agnostic billing engine for Node.js';
+const homeTitle = 'payable - provider-agnostic billing infrastructure for Node.js';
 const homeDescription =
-  'payable is a framework, provider, storage, and queue agnostic billing engine for Node.js. Wire Stripe, Paddle, or SISP, your storage, and your framework while the core owns checkout, subscriptions, invoices, webhooks, and reconciliation.';
+  'Build checkout, subscriptions, invoices, webhooks, and reconciliation for Node.js without coupling your application to one provider or framework.';
 
 const websiteSchema = {
   '@context': 'https://schema.org',
@@ -39,177 +36,31 @@ const softwareSchema = {
 ---
 
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <SeoHead title={homeTitle} description={homeDescription} type="website" />
     <script type="application/ld+json" set:html={JSON.stringify(websiteSchema)} />
     <script type="application/ld+json" set:html={JSON.stringify(softwareSchema)} />
   </head>
-  <body class="min-h-screen bg-background text-foreground">
-    <Header nav={nav} />
+  <body class="landing-page">
+    <LandingHeader />
     <main>
-      <section class="relative flex min-h-[88vh] items-center overflow-hidden border-b border-border">
-        <div
-          class="pointer-events-none absolute left-1/2 top-[-6%] -z-10 h-[520px] w-[860px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--primary)_14%,transparent),transparent)] blur-[90px]"
-        >
-        </div>
-        <div
-          class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent"
-        >
-        </div>
-
-        <div class="mx-auto w-full max-w-5xl px-6 py-24 text-center">
-          <p class="font-mono text-xs uppercase tracking-[0.25em] text-muted-foreground">
-            <span class="text-primary">@akira-io/payable</span> &middot; beta
-          </p>
-          <h1 class="mx-auto mt-8 max-w-4xl text-6xl font-bold leading-[0.95] tracking-tight sm:text-7xl lg:text-8xl">
-            Billing for any
-            <br />
-            Node.js stack
-          </h1>
-          <p class="mx-auto mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            One call. Any provider, database, queue, and framework. The core owns checkout,
-            subscriptions, invoices, and webhooks. You own the stack.
-          </p>
-          <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <a href="/03-getting-started" class={buttonVariants({ size: 'lg' })}>Get started</a>
-            <a
-              href="https://github.com/akira-io/payable"
-              rel="noopener"
-              target="_blank"
-              class={buttonVariants({ variant: 'outline', size: 'lg' })}
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
-                <path
-                  d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2 0-.3-.5-1.5.2-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 6 18.3 6.3 18.3 6.3c.7 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5z"
-                />
-              </svg>
-              View source
-            </a>
-          </div>
-          <p class="mt-8 font-mono text-sm text-muted-foreground">
-            <span class="text-foreground/40">$</span> bun add @akira-io/payable
-          </p>
-        </div>
+      <LandingHero />
+      <section class="statement">
+        <p>The infrastructure will change. <strong>Your billing model should not.</strong></p>
       </section>
-
-      <section class="overflow-hidden border-b border-border py-7">
-        <div class="mask-fade-x flex w-max animate-marquee gap-12 whitespace-nowrap pl-12 font-mono text-lg text-muted-foreground">
-          {
-            [...integrations, ...integrations].map((name) => (
-              <span class="flex items-center gap-12">
-                {name}
-                <span class="size-1 rounded-full bg-primary/50" />
-              </span>
-            ))
-          }
-        </div>
-      </section>
-
-      <section class="border-b border-border" aria-labelledby="features-heading">
-        <div class="mx-auto max-w-6xl px-6 py-24 lg:py-28">
-          <p class="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Capabilities</p>
-          <h2 id="features-heading" class="mt-4 max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
-            Less glue code. More shipping.
-          </h2>
-          <div class="mt-16 border-t border-border">
-            {
-              features.map((feature, i) => (
-                <div class="group grid items-baseline gap-x-8 gap-y-3 border-b border-border py-8 transition-colors hover:bg-card/40 lg:grid-cols-12 lg:py-10">
-                  <div class="flex items-baseline gap-5 lg:col-span-5">
-                    <span class="font-mono text-sm text-primary">0{i + 1}</span>
-                    <h3 class="text-2xl font-semibold tracking-tight sm:text-3xl">{feature.title}</h3>
-                  </div>
-                  <p class="text-lg leading-relaxed text-muted-foreground lg:col-span-7">
-                    {feature.description}
-                  </p>
-                </div>
-              ))
-            }
-          </div>
-        </div>
-      </section>
-
-      <section class="border-b border-border" aria-labelledby="docs-heading">
-        <div class="mx-auto max-w-6xl px-6 py-20 lg:py-24">
-          <div class="flex items-end justify-between gap-4">
-            <div>
-              <p class="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">Documentation</p>
-              <h2 id="docs-heading" class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                Start where you need
-              </h2>
-            </div>
-            <a href="/01-overview" class="shrink-0 text-sm font-medium text-primary hover:underline">All docs</a>
-          </div>
-          <div class="mt-12 grid overflow-hidden rounded-2xl border border-border sm:grid-cols-2 lg:grid-cols-3">
-            {
-              docCards.map((card) => (
-                <a
-                  href={card.href}
-                  class="group -mb-px -mr-px border-b border-r border-border p-7 transition-colors hover:bg-card"
-                >
-                  <div class="flex items-center justify-between">
-                    <span class="inline-flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                      <svg
-                        viewBox="0 0 24 24"
-                        width="18"
-                        height="18"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d={card.path} />
-                      </svg>
-                    </span>
-                    <span class="text-muted-foreground/50 transition-transform group-hover:translate-x-0.5">&rsaquo;</span>
-                  </div>
-                  <h3 class="mt-5 font-semibold group-hover:text-primary">{card.title}</h3>
-                  <p class="mt-2 text-sm leading-relaxed text-muted-foreground">{card.description}</p>
-                </a>
-              ))
-            }
-          </div>
-        </div>
-      </section>
-
-      <section class="border-b border-border">
-        <div class="mx-auto max-w-2xl px-6 py-24 text-center">
-          <h2 class="text-3xl font-semibold tracking-tight sm:text-4xl">Ship billing this week</h2>
-          <p class="mx-auto mt-4 max-w-md leading-relaxed text-muted-foreground">
-            One install, one provider, one checkout call. No lock-in to a framework, database, or
-            queue.
+      <EngineLifecycle />
+      <section class="closing">
+        <div>
+          <h2>Node.js billing.<br />Under your control.</h2>
+          <p>
+            Use the framework, provider, storage, and queue your product needs. Payable keeps the
+            billing domain coherent.
           </p>
-          <div class="mx-auto mt-8 inline-flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 font-mono text-sm">
-            <span class="text-muted-foreground">$</span>
-            <span>bun add @akira-io/payable</span>
-          </div>
-          <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <a href="/03-getting-started" class={buttonVariants({ size: 'lg' })}>Get started</a>
-            <a href="/02-architecture" class={buttonVariants({ variant: 'outline', size: 'lg' })}>Architecture</a>
-          </div>
+          <a class="button" href="/03-getting-started">Start building</a>
         </div>
       </section>
     </main>
-
-    <footer>
-      <div
-        class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-sm text-muted-foreground sm:flex-row"
-      >
-        <div class="flex items-center gap-2">
-          <span class="font-semibold text-foreground">payable</span>
-          <span>&middot;</span>
-          <span>Beta documentation</span>
-        </div>
-        <nav class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-          <a href="/01-overview" class="hover:text-foreground">Overview</a>
-          <a href="/03-getting-started" class="hover:text-foreground">Getting started</a>
-          <a href="/02-architecture" class="hover:text-foreground">Architecture</a>
-          <a href="https://github.com/akira-io/payable" class="hover:text-foreground" rel="noopener" target="_blank">Source</a>
-          <a href="https://github.com/akira-io" class="hover:text-foreground" rel="noopener" target="_blank">akira-io</a>
-        </nav>
-      </div>
-    </footer>
+    <LandingFooter />
   </body>
 </html>

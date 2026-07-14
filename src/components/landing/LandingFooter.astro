@@ -1,0 +1,42 @@
+---
+import logo from '@/assets/logo.svg';
+
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer" id="docs">
+  <div class="footer-inner">
+    <div class="footer-main">
+      <div class="footer-brand-wrap">
+        <div class="footer-brand">
+          <img class="akira-logo" src={logo.src} alt="Akira" width="27" height="27" />
+          <span>payable</span>
+        </div>
+        <p class="footer-about">Provider-agnostic billing infrastructure built for Node.js.</p>
+      </div>
+      <div class="footer-column">
+        <b>Product</b>
+        <a href="/01-overview">Overview</a>
+        <a href="/02-architecture">Architecture</a>
+        <a href="/features/15-reliability">Reliability</a>
+      </div>
+      <div class="footer-column">
+        <b>Integrations</b>
+        <a href="/integrations/17-providers">Providers</a>
+        <a href="/integrations/18-stripe">Stripe</a>
+        <a href="/integrations/19-paddle">Paddle</a>
+        <a href="/integrations/20-sisp">SISP</a>
+      </div>
+      <div class="footer-column">
+        <b>Resources</b>
+        <a href="/03-getting-started">Getting started</a>
+        <a href="/04-configuration">Configuration</a>
+        <a href="/28-security">Security</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© {year} akira-io. Released under the MIT License.</span>
+      <a href="https://github.com/akira-io" rel="noopener" target="_blank">GitHub</a>
+    </div>
+  </div>
+</footer>

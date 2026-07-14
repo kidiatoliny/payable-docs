@@ -1,5 +1,6 @@
 ---
 import '@/styles/globals.css';
+import '@/styles/docs.css';
 import { getCollection } from 'astro:content';
 import { buildNav, flattenNav } from '@/lib/nav';
 import Header from '@/components/Header.astro';
@@ -55,9 +56,9 @@ const breadcrumbSchema = {
 ---
 
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
-    <SeoHead title={pageTitle} description={pageDescription} type="article" />
+    <SeoHead title={pageTitle} description={pageDescription} type="article" forceLight />
     <script
       type="application/ld+json"
       set:html={JSON.stringify(articleSchema)}
@@ -67,29 +68,34 @@ const breadcrumbSchema = {
       set:html={JSON.stringify(breadcrumbSchema)}
     />
   </head>
-  <body class="min-h-screen bg-background text-foreground">
+  <body class="docs-page">
     <Header nav={nav} currentSlug={slug} />
-    <div class="mx-auto flex w-full max-w-[90rem] items-start">
+    <div class="docs-shell">
       <Sidebar nav={nav} currentSlug={slug} />
-      <main class="min-w-0 flex-1 px-5 py-10 lg:px-12">
-        <article class="prose mx-auto max-w-3xl" data-pagefind-body>
+      <main class="docs-main">
+        <article class="prose docs-article" data-pagefind-body>
+          <p class="docs-kicker">Payable documentation</p>
           <h1>{title}</h1>
+          <aside class="docs-notice">
+            <span>Beta</span>
+            <p><strong>Beta documentation.</strong> APIs may change before the stable release.</p>
+          </aside>
           <slot />
         </article>
 
         {
           (prev || next) && (
-            <nav class="mx-auto mt-12 flex max-w-3xl items-stretch justify-between gap-4 border-t border-border pt-6">
+            <nav class="docs-pagination">
               {prev ? (
                 <a
                   href={prev.href}
-                  class="group flex flex-1 flex-col rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/50"
+                  class="docs-pagination-link"
                 >
-                  <span class="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span class="docs-pagination-label">
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
                     Previous
                   </span>
-                  <span class="mt-1 text-sm font-medium group-hover:text-primary">{prev.title}</span>
+                  <strong>{prev.title}</strong>
                 </a>
               ) : (
                 <span class="flex-1" />
@@ -97,13 +103,13 @@ const breadcrumbSchema = {
               {next ? (
                 <a
                   href={next.href}
-                  class="group flex flex-1 flex-col items-end rounded-lg border border-border bg-card p-4 text-right transition-colors hover:border-primary/50"
+                  class="docs-pagination-link is-next"
                 >
-                  <span class="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span class="docs-pagination-label">
                     Next
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                   </span>
-                  <span class="mt-1 text-sm font-medium group-hover:text-primary">{next.title}</span>
+                  <strong>{next.title}</strong>
                 </a>
               ) : (
                 <span class="flex-1" />

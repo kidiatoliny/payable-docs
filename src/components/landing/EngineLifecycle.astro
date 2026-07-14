@@ -1,0 +1,110 @@
+<section class="motion-section" id="engine">
+  <div class="motion-sticky">
+    <div class="motion-head">
+      <span class="motion-kicker">ENGINE IN MOTION</span>
+      <h2>One flow.<br />End to end.</h2>
+    </div>
+
+    <div class="step-list" aria-label="Billing lifecycle">
+      <div class="step active" role="button" tabindex="0" aria-current="step"><small>01</small><b>Configure</b></div>
+      <div class="step" role="button" tabindex="0"><small>02</small><b>Checkout</b></div>
+      <div class="step" role="button" tabindex="0"><small>03</small><b>Process</b></div>
+      <div class="step" role="button" tabindex="0"><small>04</small><b>Reconcile</b></div>
+    </div>
+
+    <div class="scene">
+      <div class="engine-card">
+        <div class="scene-top">
+          <span>Payable execution</span>
+          <span class="live"><i></i>Engine active</span>
+        </div>
+        <div class="visual-area">
+          <div class="code-scene active">
+            <div class="dark-code">
+              <div><span class="line-no">01</span><span class="kw">const</span> checkout = <span class="kw">await</span> payable.checkout.<span class="fn">create</span>({'{'}</div>
+              <div><span class="line-no">02</span>&nbsp;&nbsp;customerId: <span class="str">'cus_4f2a'</span>,</div>
+              <div><span class="line-no">03</span>&nbsp;&nbsp;items: [ {'{'} priceId: <span class="str">'price_pro'</span>, quantity: 1 {'}'} ],</div>
+              <div><span class="line-no">04</span>&nbsp;&nbsp;successUrl: <span class="str">'/billing/confirmed'</span>,</div>
+              <div><span class="line-no">05</span>{'})'}</div>
+            </div>
+          </div>
+
+          <div class="checkout-scene">
+            <div class="checkout-flow">
+              <div class="flow-box"><i>01</i><b>Your app</b><span>Checkout request</span></div>
+              <div class="connector"></div>
+              <div class="flow-box"><i>02</i><b>Payable</b><span>Domain action</span></div>
+              <div class="connector"></div>
+              <div class="flow-box"><i>03</i><b>Provider</b><span>Payment session</span></div>
+            </div>
+          </div>
+
+          <div class="webhook-scene">
+            <div class="event-list">
+              <div class="event"><i class="event-icon">↳</i><div><b>checkout.completed</b><span>Signature verified · Event deduplicated</span></div><span class="badge">Processed</span></div>
+              <div class="event"><i class="event-icon">↳</i><div><b>subscription.activated</b><span>State transition validated</span></div><span class="badge">Processed</span></div>
+              <div class="event"><i class="event-icon">↳</i><div><b>invoice.paid</b><span>Customer balance updated</span></div><span class="badge">Processed</span></div>
+            </div>
+          </div>
+
+          <div class="reconcile-scene">
+            <div class="reconcile-grid">
+              <div class="metric"><small>Processed events</small><strong>48,291</strong></div>
+              <div class="metric"><small>Duplicate effects</small><strong>0</strong></div>
+              <div class="chart">
+                <small>Reconciliation throughput</small>
+                <svg viewBox="0 0 700 230" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M0 195 C70 205 110 145 180 162 S290 188 355 96 S455 138 520 74 S620 92 700 22" fill="none" stroke="#6d28d9" stroke-width="5"></path>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const section = document.querySelector('.motion-section');
+  const steps = [...document.querySelectorAll('.step')];
+  const scenes = [
+    ...document.querySelectorAll('.code-scene, .checkout-scene, .webhook-scene, .reconcile-scene'),
+  ];
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (section && !reducedMotion) {
+    const update = () => {
+      const range = section.offsetHeight - window.innerHeight;
+      const progress = Math.max(0, Math.min(0.999, -section.getBoundingClientRect().top / range));
+      const index = Math.min(3, Math.floor(progress * 4));
+      document.documentElement.style.setProperty('--scene-p', progress.toFixed(3));
+
+      steps.forEach((step, stepIndex) => {
+        step.classList.toggle('active', stepIndex === index);
+        if (stepIndex === index) step.setAttribute('aria-current', 'step');
+        if (stepIndex !== index) step.removeAttribute('aria-current');
+      });
+      scenes.forEach((scene, sceneIndex) => scene.classList.toggle('active', sceneIndex === index));
+    };
+
+    const goToStep = (index) => {
+      const range = section.offsetHeight - window.innerHeight;
+      window.scrollTo({
+        top: section.offsetTop + (range * (index + 0.08)) / 4,
+        behavior: 'smooth',
+      });
+    };
+
+    window.addEventListener('scroll', update, { passive: true });
+    steps.forEach((step, index) => {
+      step.addEventListener('click', () => goToStep(index));
+      step.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        goToStep(index);
+      });
+    });
+    update();
+  }
+</script>
