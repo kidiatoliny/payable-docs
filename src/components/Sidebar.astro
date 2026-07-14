@@ -10,19 +10,26 @@ interface Props {
 const { nav, currentSlug } = Astro.props;
 ---
 
-<aside class="docs-sidebar">
-  <nav>
+<aside
+  class="sticky top-[52px] hidden h-[calc(100vh-52px)] w-64 shrink-0 overflow-y-auto bg-sidebar px-4 py-6 lg:block"
+>
+  <nav class="flex flex-col gap-6">
     {
       nav.map((group) => (
-        <div class="docs-sidebar-group">
-          <p>{group.label}</p>
-          <ul>
+        <div>
+          <p class="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-foreground">
+            {group.label}
+          </p>
+          <ul class="flex flex-col gap-0.5">
             {group.items.map((item) => (
               <li>
                 <a
                   href={item.href}
-                  class={cn(item.id === currentSlug && 'is-active')}
-                  aria-current={item.id === currentSlug ? 'page' : undefined}
+                  class={cn(
+                    'block rounded-md px-2 py-1.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                    item.id === currentSlug &&
+                      'bg-sidebar-accent font-medium text-sidebar-accent-foreground',
+                  )}
                 >
                   {item.title}
                 </a>

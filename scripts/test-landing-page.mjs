@@ -19,13 +19,15 @@ const [page, header, hero, lifecycle, footer, styles] = await Promise.all([
 ]);
 
 assert.match(page, /<body class="landing-page">/);
+assert.match(page, /import \{ ClientRouter \} from 'astro:transitions'/);
+assert.match(page, /<ClientRouter \/>/);
 assert.match(hero, /Provider-agnostic billing infrastructure for Node\.js/);
 assert.match(hero, /One billing engine\./);
 assert.match(hero, /Built for Node\.js\./);
 assert.match(hero, /See how it works/);
 assert.doesNotMatch(hero, /Any stack|pink|gradient-to/);
 assert.match(header, /alt="Akira"/);
-assert.doesNotMatch(header, />Architecture</);
+assert.match(header, /href="\/02-architecture">Architecture</);
 assert.match(lifecycle, /class="step active"/);
 assert.match(lifecycle, />Configure</);
 assert.match(lifecycle, />Checkout</);
@@ -45,3 +47,4 @@ assert.match(footer, /Provider-agnostic billing infrastructure built for Node\.j
 assert.match(footer, /src={logo\.src}/);
 assert.match(footer, /href="\/28-security"/);
 assert.doesNotMatch(footer, /href="\/27-security"/);
+assert.match(footer, /https:\/\/github\.com\/akira-io\/payable/);

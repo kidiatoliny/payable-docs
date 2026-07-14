@@ -1,6 +1,7 @@
 ---
 import '@/styles/globals.css';
 import '@/styles/landing.css';
+import { ClientRouter } from 'astro:transitions';
 import SeoHead from '@/components/SeoHead.astro';
 import LandingHeader from '@/components/landing/LandingHeader.astro';
 import LandingHero from '@/components/landing/LandingHero.astro';
@@ -39,6 +40,7 @@ const softwareSchema = {
 <html lang="en">
   <head>
     <SeoHead title={homeTitle} description={homeDescription} type="website" />
+    <ClientRouter />
     <script type="application/ld+json" set:html={JSON.stringify(websiteSchema)} />
     <script type="application/ld+json" set:html={JSON.stringify(softwareSchema)} />
   </head>
