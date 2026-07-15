@@ -102,6 +102,7 @@ html { scroll-behavior: smooth; }
 .dark .nav-links a { color: #b5b5c0; }
 .dark .nav-links a:hover { color: #f2f2f5; }
 .dark .nav-links .pill { background: #f2f2f5; color: #17171b; }
+.dark .nav-links .pill:hover { color: #17171b; }
 .dark .hero h1 span { color: #7c3aed; }
 .dark .hero .eyebrow, .dark .hero p, .dark .closing p { color: #a5a5b1; }
 .dark .button { background: #f2f2f5; color: #17171b !important; }

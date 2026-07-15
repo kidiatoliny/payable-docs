@@ -45,6 +45,7 @@ assert.match(lifecycle, /class="reconcile-scene"/);
 assert.doesNotMatch(lifecycle, /<code>const payable = createPayable\(\{/);
 assert.match(styles, /prefers-reduced-motion: reduce/);
 assert.match(styles, /\.dark \.landing-page\s*\{[^}]*background:\s*#111114/s);
+assert.match(styles, /\.dark \.nav-links \.pill:hover\s*\{[^}]*color:\s*#17171b/s);
 assert.match(styles, /\.dark \.product\s*\{/);
 assert.match(styles, /\.dark \.editor\s*\{/);
 assert.match(styles, /\.dark \.button\s*\{/);
