@@ -1,0 +1,61 @@
+<section class="hero" id="overview">
+  <div class="hero-copy">
+    <div class="eyebrow">Provider-agnostic billing infrastructure for Node.js</div>
+    <h1>One billing engine.<br /><span>Built for Node.js.</span></h1>
+    <p>
+      Build checkout, subscriptions, invoices, and recovery flows without coupling your Node.js
+      application to one provider or framework.
+    </p>
+    <div class="hero-actions">
+      <a class="button" href="#engine">See how it works</a>
+      <a class="button secondary" href="/03-getting-started">Read the docs</a>
+    </div>
+  </div>
+
+  <div class="product-stage" aria-label="Payable configuration example">
+    <div class="product-shadow" aria-hidden="true"></div>
+    <div class="product">
+      <div class="product-bar">
+        <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="product-title">payable.config.ts</span>
+      </div>
+      <div class="product-body">
+        <aside class="side" aria-label="Engine configuration sections">
+          <p class="side-label">Engine</p>
+          <div class="side-item active"><i></i>Configuration</div>
+          <div class="side-item"><i></i>Providers</div>
+          <div class="side-item"><i></i>Storage</div>
+          <div class="side-item"><i></i>Queue</div>
+          <div class="side-item"><i></i>Webhooks</div>
+        </aside>
+        <div class="editor" aria-label="Payable configuration code">
+          <div><span class="line-no">01</span><span class="kw">import</span> {'{'} <span class="fn">createPayable</span> {'}'} <span class="kw">from</span> <span class="str">'@akira-io/payable'</span></div>
+          <div><span class="line-no">02</span></div>
+          <div><span class="line-no">03</span><span class="kw">export const</span> payable = <span class="fn">createPayable</span>({'{'}</div>
+          <div><span class="line-no">04</span>&nbsp;&nbsp;provider: <span class="fn">stripe</span>({'{'} apiKey {'}'}),</div>
+          <div><span class="line-no">05</span>&nbsp;&nbsp;storage: <span class="fn">knexStorage</span>({'{'} db {'}'}),</div>
+          <div><span class="line-no">06</span>&nbsp;&nbsp;queue: <span class="fn">bullmqQueue</span>({'{'} redis {'}'}),</div>
+          <div><span class="line-no">07</span>{'}'}</div>
+          <div><span class="line-no">08</span></div>
+          <div class="comment"><span class="line-no">09</span>// One stable billing domain for Node.js.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const root = document.documentElement;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!reducedMotion) {
+    window.addEventListener(
+      'pointermove',
+      (event) => {
+        root.style.setProperty('--mx', ((event.clientX / window.innerWidth) - 0.5).toFixed(3));
+        root.style.setProperty('--my', ((event.clientY / window.innerHeight) - 0.5).toFixed(3));
+      },
+      { passive: true },
+    );
+  }
+</script>

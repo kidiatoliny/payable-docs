@@ -49,10 +49,17 @@ const siteName = 'payable docs';
   href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
 />
 <script is:inline>
-  const mode = localStorage.getItem('theme') || 'system';
-  const dark =
-    mode === 'dark' ||
-    (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.classList.toggle('dark', dark);
-  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  (() => {
+    const applyTheme = (targetDocument) => {
+      const mode = localStorage.getItem('theme') || 'system';
+      const dark =
+        mode === 'dark' ||
+        (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      targetDocument.documentElement.classList.toggle('dark', dark);
+      targetDocument.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    };
+
+    applyTheme(document);
+    document.addEventListener('astro:before-swap', (event) => applyTheme(event.newDocument));
+  })();
 </script>

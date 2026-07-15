@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import type { NavGroup } from '@/lib/nav';
@@ -6,6 +6,14 @@ import { cn } from '@/lib/utils';
 
 export function MobileNav({ nav, currentSlug }: { nav: NavGroup[]; currentSlug: string }) {
   const [open, setOpen] = useState(false);
+  const [currentPath, setCurrentPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncCurrentPath = () => setCurrentPath(window.location.pathname);
+    syncCurrentPath();
+    document.addEventListener('astro:after-swap', syncCurrentPath);
+    return () => document.removeEventListener('astro:after-swap', syncCurrentPath);
+  }, []);
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -38,7 +46,8 @@ export function MobileNav({ nav, currentSlug }: { nav: NavGroup[]; currentSlug: 
                         href={item.href}
                         className={cn(
                           'block rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                          item.id === currentSlug && 'bg-sidebar-accent font-medium text-sidebar-accent-foreground',
+                          (currentPath ? item.href === currentPath : item.id === currentSlug) &&
+                            'bg-sidebar-accent font-medium text-sidebar-accent-foreground',
                         )}
                       >
                         {item.title}

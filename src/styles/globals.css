@@ -112,6 +112,44 @@
   }
 }
 
+.app-bar {
+  z-index: 50;
+  width: 100%;
+  height: 52px;
+  box-sizing: border-box;
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(18px);
+}
+
+.app-bar-inner {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 1120px;
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 22px;
+}
+
+.app-bar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--foreground);
+  font-size: 17px;
+  font-weight: 720;
+  letter-spacing: -0.035em;
+  text-decoration: none;
+}
+
+.app-bar-logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 27px;
+  height: 27px;
+}
+
 .bg-grid {
   background-image:
     linear-gradient(to right, color-mix(in oklab, var(--border) 70%, transparent) 1px, transparent 1px),
