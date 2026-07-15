@@ -11,7 +11,8 @@ const { nav, currentSlug } = Astro.props;
 ---
 
 <aside
-  class="sticky top-[52px] hidden h-[calc(100vh-52px)] w-64 shrink-0 overflow-y-auto bg-sidebar px-4 py-6 lg:block"
+  data-docs-sidebar
+  class="docs-sidebar sticky top-[52px] hidden h-[calc(100vh-52px)] w-64 shrink-0 overflow-y-auto bg-sidebar px-4 py-6 lg:block"
 >
   <nav class="flex flex-col gap-6">
     {
@@ -41,3 +42,21 @@ const { nav, currentSlug } = Astro.props;
     }
   </nav>
 </aside>
+
+<script>
+  const syncSidebarActive = () => {
+    const currentPath = window.location.pathname.replace(/\/$/, '');
+    const links = document.querySelectorAll<HTMLAnchorElement>('[data-docs-sidebar] a');
+
+    for (const link of links) {
+      const linkPath = new URL(link.href).pathname.replace(/\/$/, '');
+      const active = linkPath === currentPath;
+      link.classList.toggle('bg-sidebar-accent', active);
+      link.classList.toggle('font-medium', active);
+      link.classList.toggle('text-sidebar-accent-foreground', active);
+    }
+  };
+
+  syncSidebarActive();
+  document.addEventListener('astro:after-swap', syncSidebarActive);
+</script>

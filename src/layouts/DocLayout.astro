@@ -1,5 +1,7 @@
 ---
 import '@/styles/globals.css';
+import '@/styles/docs.css';
+import { ClientRouter } from 'astro:transitions';
 import { getCollection } from 'astro:content';
 import { buildNav, flattenNav } from '@/lib/nav';
 import Header from '@/components/Header.astro';
@@ -55,25 +57,26 @@ const breadcrumbSchema = {
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" transition:name="root" transition:animate="none">
   <head>
     <SeoHead title={pageTitle} description={pageDescription} type="article" />
+    <ClientRouter fallback="swap" />
     <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
     <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
   </head>
-  <body class="min-h-screen bg-background text-foreground">
-    <Header nav={nav} currentSlug={slug} />
-    <div class="mx-auto flex w-full max-w-[90rem] items-start">
-      <Sidebar nav={nav} currentSlug={slug} />
-      <main class="min-w-0 flex-1 px-5 py-10 lg:px-12">
-        <article class="prose mx-auto max-w-3xl" data-pagefind-body>
+  <body class="docs-page min-h-screen bg-background text-foreground">
+    <Header nav={nav} currentSlug={slug} transition:persist="docs-header" />
+    <div class="docs-shell mx-auto flex w-full max-w-[90rem] items-start">
+      <Sidebar nav={nav} currentSlug={slug} transition:persist="docs-sidebar" />
+      <main class="docs-content min-w-0 flex-1 px-5 py-10 lg:px-12">
+        <article class="docs-article prose mx-auto max-w-3xl" data-pagefind-body>
           <h1>{title}</h1>
           <slot />
         </article>
 
         {
           (prev || next) && (
-            <nav class="mx-auto mt-12 flex max-w-3xl items-stretch justify-between gap-4 border-t border-border pt-6">
+            <nav class="docs-pagination mx-auto mt-12 flex max-w-3xl items-stretch justify-between gap-4 border-t border-border pt-6">
               {prev ? (
                 <a href={prev.href} class="group flex flex-1 flex-col rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/50">
                   <span class="flex items-center gap-1 text-xs text-muted-foreground">

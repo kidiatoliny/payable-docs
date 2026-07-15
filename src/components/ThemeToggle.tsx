@@ -15,7 +15,7 @@ function apply(mode: Mode) {
 }
 
 export function ThemeToggle() {
-  const [mode, setMode] = useState<Mode>('system');
+  const [mode, setMode] = useState<Mode | null>(null);
 
   useEffect(() => {
     const stored = (localStorage.getItem('theme') as Mode | null) ?? 'system';
@@ -23,6 +23,7 @@ export function ThemeToggle() {
   }, []);
 
   useEffect(() => {
+    if (mode === null) return;
     apply(mode);
     if (mode !== 'system') return;
     const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -32,14 +33,16 @@ export function ThemeToggle() {
   }, [mode]);
 
   function cycle() {
-    const next = ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length];
+    const currentMode = mode ?? 'system';
+    const next = ORDER[(ORDER.indexOf(currentMode) + 1) % ORDER.length];
     try {
       localStorage.setItem('theme', next);
     } catch {}
     setMode(next);
   }
 
-  const label = mode === 'system' ? 'System theme' : mode === 'light' ? 'Light theme' : 'Dark theme';
+  const currentMode = mode ?? 'system';
+  const label = currentMode === 'system' ? 'System theme' : currentMode === 'light' ? 'Light theme' : 'Dark theme';
 
   return (
     <button
@@ -49,9 +52,9 @@ export function ThemeToggle() {
       title={label}
       className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
     >
-      {mode === 'system' && <Monitor className="size-4" />}
-      {mode === 'light' && <Sun className="size-4" />}
-      {mode === 'dark' && <Moon className="size-4" />}
+      {currentMode === 'system' && <Monitor className="size-4" />}
+      {currentMode === 'light' && <Sun className="size-4" />}
+      {currentMode === 'dark' && <Moon className="size-4" />}
     </button>
   );
 }

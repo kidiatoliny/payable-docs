@@ -1,0 +1,54 @@
+.docs-page { background: #f5f5f7; color: #17171b; }
+.docs-page .app-bar { background: #f5f5f7e8; }
+.docs-shell { min-height: calc(100vh - 52px); }
+.docs-sidebar { border-right: 1px solid #0000000d; background: transparent; }
+.docs-sidebar nav > div > p { color: #7c3aed; font-size: 10px; letter-spacing: .1em; }
+.docs-sidebar a { border-radius: 9px; color: #65656d; }
+.docs-sidebar a:hover { background: #ffffffb8; color: #17171b; }
+.docs-sidebar a.bg-sidebar-accent { background: #fff; color: #17171b; box-shadow: 0 8px 24px #26222f0a; }
+.docs-content { padding-top: 72px; padding-bottom: 96px; }
+.docs-article { color: #5f5f67; font-size: 16px; line-height: 1.75; }
+.docs-article h1 { margin: 0 0 52px; color: #17171b; font-size: clamp(48px, 5vw, 72px); font-weight: 700; line-height: .94; letter-spacing: -.055em; }
+.docs-article h2 { margin-top: 56px; padding-top: 30px; border-color: #00000012; color: #17171b; font-size: 30px; line-height: 1.05; letter-spacing: -.035em; }
+.docs-article h3 { color: #17171b; font-size: 21px; letter-spacing: -.025em; }
+.docs-article a { color: #6d28d9; }
+.docs-article :not(pre) > code { border-color: #6d28d91c; background: #ebe7f8; color: #5b21b6; }
+.docs-article pre, .docs-article pre.mermaid { border-color: #0000000d; border-radius: 18px; background: #fff; box-shadow: 0 20px 55px #302a3d0a; }
+.docs-article blockquote { border-color: #7c3aed; border-radius: 0 14px 14px 0; background: #fff; color: #65656d; }
+.docs-article table { border-color: #0000000d; border-radius: 16px; background: #fff; }
+.docs-article thead th { background: #efeff2; }
+.docs-pagination { border-color: #00000012; }
+.docs-pagination a { border-radius: 16px; border-color: #0000000d; background: #fff; box-shadow: 0 16px 38px #302a3d08; }
+.docs-toc { color: #777780; }
+.docs-toc > p { color: #7c3aed; font-size: 10px; letter-spacing: .1em; }
+.docs-toc ul { border-color: #00000012; }
+
+.dark .docs-page { background: #111114; color: #f2f2f5; }
+.dark .docs-page .app-bar { border-color: #ffffff12; background: #111114e8; }
+.dark .docs-sidebar { border-color: #ffffff0d; background: transparent; }
+.dark .docs-sidebar a { color: #9c9ca7; }
+.dark .docs-sidebar a:hover { background: #ffffff08; color: #f2f2f5; }
+.dark .docs-sidebar a.bg-sidebar-accent { background: #202027; color: #f2f2f5; box-shadow: none; }
+.dark .docs-article { color: #aaaab5; }
+.dark .docs-article h1, .dark .docs-article h2, .dark .docs-article h3 { color: #f2f2f5; }
+.dark .docs-article h2 { border-color: #ffffff12; }
+.dark .docs-article a { color: #a78bfa; }
+.dark .docs-article :not(pre) > code { border-color: #ffffff10; background: #25252d; color: #c4b5fd; }
+.dark .docs-article pre, .dark .docs-article pre.mermaid { border-color: #ffffff12; background: #1c1c21; box-shadow: 0 24px 70px #00000038; }
+.dark .docs-article pre.astro-code { background: #1c1c21 !important; }
+.dark .docs-article blockquote { border-color: #8b5cf6; background: #1c1c21; color: #aaaab5; }
+.dark .docs-article table { border-color: #ffffff12; background: #1c1c21; }
+.dark .docs-article thead th { background: #25252d; }
+.dark .docs-pagination { border-color: #ffffff12; }
+.dark .docs-pagination a { border-color: #ffffff12; background: #1c1c21; box-shadow: none; }
+.dark .docs-toc { color: #8f8f9c; }
+.dark .docs-toc ul { border-color: #ffffff12; }
+
+@media (max-width: 1023px) {
+  .docs-content { padding-top: 52px; }
+}
+
+@media (max-width: 640px) {
+  .docs-content { padding-top: 38px; padding-bottom: 64px; }
+  .docs-article h1 { margin-bottom: 38px; font-size: 46px; }
+}

@@ -1,11 +1,12 @@
 ---
 import logo from '@/assets/logo.svg';
+import { ThemeToggle } from '@/components/ThemeToggle';
 ---
 
-<nav class="local-nav" aria-label="Landing navigation">
-  <div class="nav-inner">
-    <a class="brand" href="#overview">
-      <img class="akira-logo" src={logo.src} alt="Akira" width="27" height="27" />
+<nav class="app-bar local-nav" aria-label="Landing navigation">
+  <div class="app-bar-inner">
+    <a class="app-bar-brand" href="#overview">
+      <img class="app-bar-logo" src={logo.src} alt="Akira" width="27" height="27" />
       <span>payable</span>
     </a>
     <div class="nav-links">
@@ -13,6 +14,7 @@ import logo from '@/assets/logo.svg';
       <a href="#engine">Engine</a>
       <a href="/02-architecture">Architecture</a>
       <a href="/03-getting-started">Docs</a>
+      <ThemeToggle client:load />
       <a class="pill" href="/03-getting-started">Get started</a>
     </div>
   </div>
