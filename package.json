@@ -9,7 +9,7 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "node scripts/sync-docs.mjs && astro build && pagefind --site dist",
-    "test": "node scripts/test-mobile-header.mjs && node scripts/test-landing-page.mjs && node scripts/test-docs-ui.mjs",
+    "test": "node scripts/test-nav.mjs && node scripts/test-mobile-header.mjs && node scripts/test-landing-page.mjs && node scripts/test-docs-ui.mjs",
     "preview": "astro preview"
   },
   "dependencies": {
