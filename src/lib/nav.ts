@@ -34,14 +34,37 @@ const GROUPS: { label: string; match: (dir: string, order: number) => boolean }[
   { label: 'Operations and reference', match: (dir, order) => dir === '' && order >= 25 },
 ];
 
+export function placeExamplesAfterReference(groups: NavGroup[]): NavGroup[] {
+  const referenceIndex = groups.findIndex(({ label }) => label === 'Reference');
+  const examplesIndex = groups.findIndex(({ label }) => label === 'Examples');
+
+  if (referenceIndex === -1 || examplesIndex === -1) return groups;
+  if (examplesIndex === referenceIndex + 1) return groups;
+
+  const examplesGroup = groups[examplesIndex];
+  const groupsWithoutExamples = groups.filter((_, index) => index !== examplesIndex);
+  const normalizedReferenceIndex = groupsWithoutExamples.findIndex(
+    ({ label }) => label === 'Reference',
+  );
+  const insertionIndex = normalizedReferenceIndex + 1;
+
+  return [
+    ...groupsWithoutExamples.slice(0, insertionIndex),
+    examplesGroup,
+    ...groupsWithoutExamples.slice(insertionIndex),
+  ];
+}
+
 export function buildNav(entries: DocEntryLike[]): NavGroup[] {
   const sorted = [...entries].sort((a, b) => orderOf(a) - orderOf(b));
-  return GROUPS.map((group) => ({
+  const groups = GROUPS.map((group) => ({
     label: group.label,
     items: sorted
       .filter((entry) => group.match(dirOf(entry.id), orderOf(entry)))
       .map((entry) => ({ id: entry.id, title: entry.data.title, href: `/${entry.id}` })),
   })).filter((group) => group.items.length > 0);
+
+  return placeExamplesAfterReference(groups);
 }
 
 export function flattenNav(groups: NavGroup[]): NavItem[] {
