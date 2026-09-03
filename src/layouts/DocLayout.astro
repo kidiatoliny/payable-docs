@@ -6,6 +6,8 @@ import { getCollection } from 'astro:content';
 import { buildNav, flattenNav } from '@/lib/nav';
 import Header from '@/components/Header.astro';
 import Sidebar from '@/components/Sidebar.astro';
+import { CodeBlocks } from '@/components/CodeBlocks';
+import { ContentTables } from '@/components/ContentTables';
 import Toc from '@/components/Toc.astro';
 import SeoHead from '@/components/SeoHead.astro';
 
@@ -67,12 +69,14 @@ const breadcrumbSchema = {
   <body class="docs-page min-h-screen bg-background text-foreground">
     <Header nav={nav} currentSlug={slug} transition:persist="docs-header" />
     <div class="docs-shell mx-auto flex w-full max-w-[90rem] items-start">
-      <Sidebar nav={nav} currentSlug={slug} transition:persist="docs-sidebar" />
-      <main class="docs-content min-w-0 flex-1 px-5 py-10 lg:px-12">
-        <article class="docs-article prose mx-auto max-w-3xl" data-pagefind-body>
+      <Sidebar nav={nav} currentSlug={slug} />
+      <main class="min-w-0 flex-1 px-5 py-12 lg:px-10">
+        <article class="prose prose-neutral dark:prose-invert mx-auto max-w-3xl" data-pagefind-body>
           <h1>{title}</h1>
           <slot />
         </article>
+        <CodeBlocks client:only="react" />
+        <ContentTables client:only="react" />
 
         {
           (prev || next) && (

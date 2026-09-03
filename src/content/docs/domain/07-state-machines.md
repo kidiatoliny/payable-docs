@@ -9,7 +9,14 @@ State machines live in `src/domain/states/`. There is one per lifecycle-bearing 
 
 ## Scope: opt-in helpers, not internal enforcement
 
-These machines are **exported as opt-in helpers** for consumers who want to validate transitions in their own code. They are not a global integrity gate inside the library. The library's own write paths treat the provider as the source of truth and reconcile the provider-reported status directly (see the webhook reconcile path and the subscription actions), so subscription, invoice, and refund status writes do **not** route through `SubscriptionStateMachine` / `InvoiceStateMachine` / `RefundStateMachine`. The one internal use is `PaymentStateMachine` in the refund path, to decide between a full and partial refund transition. If you need transition enforcement over your own status changes, construct the relevant machine and call `can(event)` / the named methods yourself; do not assume the persisted status was gated by it.
+These machines are **exported as opt-in helpers** for consumers who want to validate transitions in their own code. They are not a global integrity gate inside the library. The library's own write paths treat the provider as the source of truth and reconcile the provider-reported status directly (see the webhook reconcile path and the subscription actions), so subscription, invoice, and refund status writes do **not** route through the raw `can(event)` / named-method API.
+
+The exception is the dedicated **reconcile helpers**, which the library *does* use on its reconcile paths:
+
+- `reconcileSubscriptionStatus(current, target)` (in `subscription-state-machine.ts`) runs a BFS shortest-path over the transition map and returns `{ status, applied, events }` - the event sequence that moves `current` to `target`, or `applied: false` when no path exists.
+- `PaymentStateMachine.tryTransitionTo(target)` looks up the event that lands on `target` and applies it only if it is legal from the current state, returning `false` (a no-op) otherwise. `PaymentStateMachine` is also used in the refund path to decide between a full and partial refund transition.
+
+If you need transition enforcement over your own status changes, construct the relevant machine and call `can(event)` / the named methods yourself; do not assume the persisted status was gated by the raw event API.
 
 ## The shared transition mechanism
 
@@ -86,7 +93,6 @@ Events: `start_trial`, `activate`, `mark_past_due`, `mark_unpaid`, `pause`, `res
 | `unpaid` | `activate` | `active` |
 | `unpaid` | `cancel` | `canceled` |
 | `paused` | `resume` | `active` |
-| `paused` | `mark_past_due` | `past_due` |
 | `paused` | `cancel` | `canceled` |
 | `canceled` | - | (terminal: no transitions) |
 
@@ -116,7 +122,6 @@ stateDiagram-v2
   unpaid --> active: activate
   unpaid --> canceled: cancel
   paused --> active: resume
-  paused --> past_due: mark_past_due
   paused --> canceled: cancel
   canceled --> [*]
   incomplete_expired --> [*]
@@ -153,10 +158,11 @@ Events: `finalize`, `pay`, `mark_uncollectible`, `void`.
 | `open` | `mark_uncollectible` | `uncollectible` |
 | `open` | `void` | `void` |
 | `uncollectible` | `pay` | `paid` |
+| `uncollectible` | `void` | `void` |
 | `paid` | - | (terminal: no transitions) |
 | `void` | - | (terminal: no transitions) |
 
-`paid` and `void` are absent from the map and so are terminal. An `uncollectible` invoice can still be paid.
+`paid` and `void` are absent from the map and so are terminal. An `uncollectible` invoice can still be paid or voided.
 
 Methods: `finalize`, `pay`, `markUncollectible`, `voidInvoice`.
 
@@ -169,6 +175,7 @@ stateDiagram-v2
   open --> uncollectible: mark_uncollectible
   open --> void: void
   uncollectible --> paid: pay
+  uncollectible --> void: void
   paid --> [*]
   void --> [*]
 ```
@@ -197,6 +204,7 @@ Events: `process`, `succeed`, `fail`, `cancel`, `refund`, `partially_refund`.
 | `pending` | `cancel` | `canceled` |
 | `processing` | `succeed` | `succeeded` |
 | `processing` | `fail` | `failed` |
+| `processing` | `cancel` | `canceled` |
 | `succeeded` | `refund` | `refunded` |
 | `succeeded` | `partially_refund` | `partially_refunded` |
 | `partially_refunded` | `refund` | `refunded` |
@@ -218,6 +226,7 @@ stateDiagram-v2
   pending --> canceled: cancel
   processing --> succeeded: succeed
   processing --> failed: fail
+  processing --> canceled: cancel
   succeeded --> refunded: refund
   succeeded --> partially_refunded: partially_refund
   partially_refunded --> refunded: refund

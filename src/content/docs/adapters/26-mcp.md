@@ -1,0 +1,273 @@
+---
+title: "MCP Adapter"
+description: "@akira-io/payable/mcp exposes the Payable facade as a Model Context Protocol server, so an AI client (Claude Desktop, Claude Code, or any MCP host) can read..."
+sidebar:
+  order: 26
+---
+
+`@akira-io/payable/mcp` exposes the Payable facade as a [Model Context
+Protocol](https://modelcontextprotocol.io) server, so an AI client (Claude Desktop, Claude Code,
+or any MCP host) can read and operate billing state through tools, resources, and prompts. It
+follows the same factory pattern as the HTTP adapters: `createPayableMcpServer(payable, options)`.
+
+## Purpose
+
+Turn billing queries, resources, and builders into MCP tools. The adapter contains no business
+logic: every tool is a thin call into the facade. A `payable-mcp` bin makes it runnable as a
+standalone server over stdio or streamable HTTP.
+
+## Factory
+
+```ts
+import { createPayableMcpServer } from '@akira-io/payable/mcp';
+
+const server = createPayableMcpServer(payable, options);
+```
+
+```ts
+interface McpPayableOptions {
+  serverInfo?: { name?: string; version?: string };
+  defaultProvider?: string;
+  defaultTenantId?: string | null;
+  allowTenantOverride?: boolean;
+  policy?: McpPolicy;
+}
+
+interface McpPolicy {
+  readOnly?: boolean; // default false
+  allowMoneyMovement?: boolean; // default false
+  requireAuthorization?: boolean; // default false
+  enabledTools?: string[]; // default: every tool the other flags permit
+  authorization?: (toolName: string, args: Record<string, unknown>) => AuthorizationContext;
+}
+```
+
+`@modelcontextprotocol/sdk` is an optional peer dependency; install it to use this adapter.
+
+## Tools
+
+General tools accept an optional `tenantId` and `provider`. Canonical tools do not accept a provider,
+and canonical subscription price migration tools require a non-empty tenant. Money amounts are minor
+units, passed as `{ amount, currency }` and converted to the `Money` value object. List tools that
+accept a `limit` cap it at `MAX_LIST_LIMIT = 100` (`src/presentation/mcp/schemas.ts`).
+
+| Tool | Kind | Backing call |
+| --- | --- | --- |
+| `providers_list` | read | `payable.providers().names()` |
+| `customer_get` | read | `payable.customers().get(billable)` |
+| `customer_sync` | mutate | `payable.customers(provider).sync(billable)` |
+| `subscriptions_list` | read | per-billable or global `payable.subscriptions()` |
+| `subscription_get` | read | `payable.customer().subscription(name).get()` |
+| `payments_list` | read | per-billable or global `payable.payments()` |
+| `invoices_list` | read | `payable.customer().invoices(limit)` |
+| `invoice_pdf` | read | `payable.invoices().downloadPdf(id)` |
+| `refunds_list` | read | `payable.refunds().list(paymentId)` |
+| `audit_logs_query` | read | `payable.auditLogs(tenantId).run(filter)` |
+| `webhooks_list` | read | `payable.webhookEvents(tenantId).list(filter)` |
+| `webhook_get` | read | `payable.webhookEvents(tenantId).get(id)` |
+| `product_get` | read | `payable.providerCatalog().products.retrieve(id)` |
+| `products_list` | read | `payable.providerCatalog().products.list({ limit, cursor, active })` |
+| `price_get` | read | `payable.providerCatalog().prices.retrieve(id)` |
+| `prices_list` | read | `payable.providerCatalog().prices.list({ limit, cursor, active, providerProductId })` |
+| `canonical_customer_get` | read | `payable.customers().find(id)` |
+| `canonical_customers_list` | read | `payable.customers().list(filters)` |
+| `canonical_product_get` | read | `payable.products().retrieve(id)` |
+| `canonical_products_list` | read | `payable.products().list(filters)` |
+| `canonical_price_get` | read | `payable.prices().retrieve(id)` |
+| `canonical_prices_list` | read | `payable.prices().list(filters)` |
+| `canonical_subscription_get` | read | `payable.canonicalSubscriptions().retrieve(id)` |
+| `canonical_subscriptions_list` | read | `payable.canonicalSubscriptions().list(filters)` |
+| `canonical_payment_get` | read | `payable.storedPayments().retrieve(id)` |
+| `canonical_payments_list` | read | `payable.storedPayments().list(filters)` |
+| `canonical_invoices_list` | read | `payable.canonicalInvoices().list(filters)` |
+| `canonical_invoice_get` | read | `payable.canonicalInvoices().retrieve(id)` |
+| `canonical_subscription_price_migration_create` | mutate | `payable.subscriptionPriceMigrations().preview(input)` |
+| `canonical_subscription_price_migrations_list` | read | `payable.subscriptionPriceMigrations().list(input)` |
+| `canonical_subscription_price_migration_get` | read | `payable.subscriptionPriceMigrations().retrieve(id)` |
+| `canonical_subscription_price_migration_approve` | mutate | `payable.subscriptionPriceMigrations().approve(id, input)` |
+| `canonical_subscription_price_migration_cancel` | mutate | `payable.subscriptionPriceMigrations().cancel(id, input)` |
+| `canonical_subscription_price_migration_retry` | mutate | `payable.subscriptionPriceMigrations().retry(id, input)` |
+| `product_create` | mutate | `payable.providerCatalog().products.create(...)` |
+| `product_update` | mutate | `payable.providerCatalog().products.update(...)` |
+| `product_activate` | mutate | `payable.providerCatalog().products.activate(id)` |
+| `product_archive` | mutate | `payable.providerCatalog().products.archive(id)` |
+| `price_create` | mutate | `payable.providerCatalog().prices.create(...)` |
+| `price_activate` | mutate | `payable.providerCatalog().prices.activate(id)` |
+| `price_archive` | mutate | `payable.providerCatalog().prices.archive(id)` |
+| `subscription_create` | mutate | subscription builder |
+| `subscription_cancel` | mutate | `subscription(name).cancel(...)` |
+| `subscription_cancel_now` | mutate | `subscription(name).cancelNow(...)` |
+| `subscription_resume` | mutate | `subscription(name).resume(...)` |
+| `subscription_swap` | mutate | `subscription(name).swap(...)` |
+| `subscription_update_quantity` | mutate | `subscription(name).updateQuantity(...)` |
+| `checkout_create` | mutate | subscription checkout builder |
+| `billing_portal` | mutate | `payable.customer().billingPortal(returnUrl)` |
+| `charge` | money | `payable.customer().charge(...)` |
+| `refund` | money | `payable.refund(...)` |
+| `webhook_replay` | mutate | `payable.replayWebhook(id, context, provider)` |
+
+Subscription swap and quantity tools require `effectiveTiming`, `prorationPolicy`, and
+`paymentFailurePolicy`; adapters do not invent provider defaults.
+
+### Canonical subscription price migration tools
+
+The create tool accepts canonical `subscriptionId`, `targetPriceId`, optional canonical `itemId`,
+optional positive `quantity`, explicit timing and policies, `tenantId`, and `idempotencyKey`.
+`scheduled` requires an RFC 3339 `effectiveAt`; other timings reject it. The list supports bounded
+`limit`, opaque `cursor`, canonical `subscriptionId`, and status filters. Every schema is strict and
+rejects unknown keys.
+
+Create, approve, cancel, and retry each require a durable operation-specific `idempotencyKey`.
+All six tools require the authorization callback to return an allowed actor whose `tenantId` matches
+the resolved tenant, even when global `requireAuthorization` is false. Responses contain only the
+allow-listed canonical DTO. Provider identifiers, execution ownership, request hashes, internal
+evidence, and provider diagnostics are not returned.
+
+There is no MCP execute, due-page, scheduler, worker, or queue tool. A host worker uses the core
+resource for due execution. `reconciliation_required` is terminal for automatic work and must be
+resolved explicitly before a new migration is attempted.
+
+Catalog list tools return `{ data, nextCursor }`, treat cursors as opaque, default to active entries,
+and accept limits from 1 through 100. `prices_list` also accepts `providerProductId`. MCP exposes
+activation and archival instead of product or price delete tools. Changing price monetary terms
+requires creating a replacement price.
+
+Canonical list tools return `{ items, nextCursor, hasMore }`, default to 25 items, and accept at
+most 100. They use `tenantId`, never accept or resolve a provider, and query only local storage.
+Binding metadata is opt-in for customers, products, prices, and subscriptions. The existing
+`products_list` and `prices_list` tools remain provider-native. The existing `subscriptions_list`
+and `payments_list` tools retain their array-returning compatibility behavior.
+
+## Catalog idempotency
+
+Every catalog mutation tool accepts an optional `idempotencyKey`. The adapter validates the caller
+key and forwards it through `CatalogMutationOptions` after the policy authorization callback runs.
+
+```json
+{
+  "name": "product_create",
+  "arguments": {
+    "name": "Pro",
+    "provider": "stripe-primary",
+    "tenantId": "tenant-acme",
+    "idempotencyKey": "catalog-product-pro-v1"
+  }
+}
+```
+
+Reuse the key only for the same tenant, provider, catalog operation, and arguments. Invalid keys
+return `INVALID_IDEMPOTENCY_KEY` in the structured tool error. A provider without native catalog
+idempotency requires an engine store; otherwise the tool returns
+`CATALOG_IDEMPOTENCY_STORAGE_REQUIRED`. After an ambiguous non-native provider failure, reconcile
+the remote entity before responding to `IDEMPOTENCY_RECONCILIATION_REQUIRED`. See
+[Idempotency](/features/14-idempotency/) for the complete contract.
+
+## Resources and prompts
+
+- Resource `payable://schema/entities` returns entity field names and status enums.
+- Resource `payable://config/providers` returns the configured provider names.
+- Prompt `diagnose_subscription` guides an investigation of a subscription and its recent activity.
+
+## Policy and tool gating
+
+Each tool is registered with a **kind** - `read`, `mutate`, or `money` (see the Kind column above).
+At registration the adapter resolves the policy and runs `isToolEnabled(name, kind, policy)` per tool;
+a tool is skipped entirely when it returns `false`. The checks apply in this order (source:
+`src/presentation/mcp/policy.ts`):
+
+1. `enabledTools` - when set, a tool whose name is not in the allow-list is dropped regardless of kind.
+2. `readOnly` - when `true`, any tool whose kind is not `read` is dropped. This is what hides every
+   mutating and money tool.
+3. `allowMoneyMovement` - a tool of kind `money` (`charge`, `refund`) is dropped unless this is `true`.
+4. `requireAuthorization` - when `true`, any non-`read` tool is dropped unless `policy.authorization`
+   is a function.
+
+`readOnly` and `allowMoneyMovement` are **orthogonal**: `readOnly` gates the read-vs-everything-else
+split, while `allowMoneyMovement` gates only the money group. With `readOnly: false,
+allowMoneyMovement: false` (the defaults) the read and mutate groups are exposed but the money group is
+not; setting `allowMoneyMovement: true` adds `charge` and `refund` on top. `readOnly: true` collapses
+the surface to the read group no matter what `allowMoneyMovement` says.
+
+`policy.authorization` is a function `(toolName, args) => AuthorizationContext`. It must derive its
+result from the trusted MCP host identity, because Payable does not authenticate the MCP caller. For
+each catalog mutation, `policy.authorization` runs once. MCP forwards the returned object unchanged
+in `CatalogMutationOptions`; the core resource makes the final authorization decision. A denied
+catalog context returns `AUTHORIZATION_DENIED` before capability validation or provider calls, even
+when global authorization is disabled. When
+`requireAuthorization` is set but no `authorization` function is given, the non-read tools are not
+registered at all.
+
+When tenancy is enabled, every tool requires a `tenantId` (the facade throws `TENANT_REQUIRED`).
+
+## Running the bin
+
+The `payable-mcp` bin is the only place that reads a config file, preserving the core principle that
+the library never reads the environment. The config module composes a `Payable` instance:
+
+```ts
+// payable.config.ts
+import { createPayable } from '@akira-io/payable';
+
+const payable = createPayable({ providers: { stripe: stripeProvider }, storage });
+
+export default { payable, mcp: { policy: { allowMoneyMovement: false } } };
+```
+
+stdio (spawned by an MCP host):
+
+```bash
+payable-mcp --config ./payable.config.ts
+```
+
+Claude Desktop / Claude Code configuration:
+
+```json
+{
+  "mcpServers": {
+    "payable": {
+      "command": "payable-mcp",
+      "args": ["--config", "./payable.config.ts"]
+    }
+  }
+}
+```
+
+Streamable HTTP:
+
+```bash
+payable-mcp --config ./payable.config.ts --http 127.0.0.1:3333
+```
+
+The HTTP transport is stateless (JSON responses). Set `PAYABLE_MCP_TOKEN` to require a
+`Authorization: Bearer <token>` header. The transport applies no TLS, rate limiting, or OAuth;
+terminate TLS and add network controls at your edge.
+
+### DNS-rebinding and origin protection
+
+`serveHttp` enables DNS-rebinding protection by default (`enableDnsRebindingProtection ?? true`),
+which validates the `Host` and `Origin` headers on each request (source:
+`src/presentation/mcp/transports/http.ts`):
+
+- `allowedHosts` defaults, per request, to `127.0.0.1:<port>`, `localhost:<port>`, and
+  `[::1]:<port>` (the local port the connection arrived on). Pass `allowedHosts` to allow other
+  hostnames when fronting the server with a proxy.
+- `allowedOrigins` restricts the accepted `Origin` header; pass it when browser clients connect.
+- Set `enableDnsRebindingProtection: false` to disable the host/origin checks (only do this behind a
+  trusted proxy).
+
+### Body-size cap
+
+Requests are bounded by `maxBodyBytes` (default 1 MiB). A request whose `Content-Length` exceeds the
+cap, or whose streamed body grows past it, is rejected with HTTP 413.
+
+## Embedding the server
+
+```ts
+import { createPayableMcpServer, serveStdio, serveHttp } from '@akira-io/payable/mcp';
+
+await serveStdio(createPayableMcpServer(payable, { policy: { readOnly: true } }));
+
+await serveHttp(() => createPayableMcpServer(payable), { port: 3333 });
+```
+
+`serveHttp` takes a factory because each request gets its own server and transport.

@@ -2,7 +2,7 @@
 title: "Development"
 description: "How to work on @akira-io/payable: structure, workflow, standards, and the test/lint/build loop."
 sidebar:
-  order: 28
+  order: 29
 ---
 
 How to work on `@akira-io/payable`: structure, workflow, standards, and the test/lint/build loop.
@@ -13,9 +13,10 @@ The codebase follows clean-architecture layers under `src/`:
 
 - `domain/` - entities, value objects, DTOs, events, errors, contracts. No outward dependencies.
 - `application/` - actions, builders, pipelines, policies. Depends only on `domain`.
-- `infrastructure/` - providers (Stripe, Paddle), storage (Knex), queue (sync, BullMQ), event bus,
-  encryption, cache, locks, outbox, audit.
-- `presentation/` - the Express, Fastify, and NestJS adapters plus shared HTTP helpers.
+- `infrastructure/` - providers (Stripe, Paddle, SISP), storage (Knex), queue (sync, BullMQ), event
+  bus, encryption, cache, locks, outbox, audit.
+- `presentation/` - the Express, Fastify, NestJS, and MCP adapters, the SISP redirect helpers, and
+  shared HTTP helpers.
 - `support/` - config resolution, clock, correlation, header redaction.
 
 `src/payable.ts` is the facade adapters call; `src/create-payable.ts` resolves config into a
@@ -30,6 +31,10 @@ The codebase follows clean-architecture layers under `src/`:
 - Use conventional commit messages - the changelog is generated from them via git-cliff.
 - Keep diffs focused: refactors, feature work, and dependency bumps belong in separate PRs. No
   drive-by refactors in feature PRs.
+
+`main` is the development integration line. Downstream development checkouts consume authorized
+beta releases from npm with an exact version and committed lockfile. A merged feature does not
+create a tag, npm version, or release; those remain separate authorized release actions.
 
 ## Coding standards
 
@@ -51,6 +56,41 @@ Tests live in `tests/` and run on Vitest, which includes `tests/**/*.test.ts`.
   and exception filter directly.
 - Coverage thresholds are enforced at 78% for statements, branches, functions, and lines.
 
+### Optional test suites
+
+Some suites exercise optional peer dependencies that a minimal install does not have, so they are
+excluded unless their dependencies are present. `vitest.config.ts` builds the exclude list from
+`optionalSuiteExcludes(isInstalled)` (`vitest.suites.ts`), where `isInstalled` resolves a module via
+`require.resolve`:
+
+```ts
+export function optionalSuiteExcludes(isInstalled: (name: string) => boolean): string[] {
+  const exclude: string[] = [];
+  if (!isInstalled(MCP_PROBE)) {
+    exclude.push(...MCP_SUITES);
+  }
+  if (!NEST_PROBES.every(isInstalled)) {
+    exclude.push(...NEST_SUITES);
+  }
+  return exclude;
+}
+```
+
+- The MCP suites (`mcp-tools`, `mcp-http`, `mcp-policy`) are excluded unless
+  `@modelcontextprotocol/sdk/client/index.js` resolves.
+- The NestJS suite (`nest`) is excluded unless `@nestjs/common`, `@nestjs/core`, and
+  `reflect-metadata` all resolve.
+
+Because these probes match the optional peers, `vitest run` passes in a minimal install (the core
+zero-required-peer install) instead of failing on missing modules. Installing the optional peers turns
+the matching suites back on automatically.
+
+The real Trust My Travel suite is always excluded from standard runs, including when credentials
+are present. Run `bun run test:integration:tmt` for an explicit, single-worker invocation. With no
+credentials it reports why it skipped; a partial configuration fails without printing values. See
+`docs/integrations/20b-trust-my-travel-test-certification.md` for the Test-only guard, cleanup policy,
+and supported capability matrix.
+
 ## How to run
 
 The package scripts are run with Bun in CI; locally either Bun or npm works.
@@ -58,24 +98,36 @@ The package scripts are run with Bun in CI; locally either Bun or npm works.
 | Task | Command |
 | --- | --- |
 | Run all tests | `bun run test` (`vitest run`) |
+| Run the real TMT Test suite | `bun run test:integration:tmt` |
 | Tests with coverage | `bun run test:coverage` |
-| A single test by name | `bun run test --filter=name` (or `npx vitest run -t "name"`) |
+| A single test by name | `npx vitest run -t "name"` |
 | Typecheck | `bun run typecheck` (`tsc --noEmit`) |
 | Lint | `bun run lint` (`biome check .`) |
 | Lint and autofix | `bun run lint:fix` (`biome check --write .`) |
 | Build | `bun run build` (`tsup`) |
 | Verify core bundle | `bun run verify:bundle` |
+| Verify a packed consumer | `bun run verify:consumer -- <package-spec>` |
+| Verify exports map | `bun run verify:exports` (`node scripts/check-exports.mjs`) |
 
-The `--filter` flag is passed through to Vitest. Vitest's own `-t`/`--testNamePattern` selects by
-test name; `vitest run path/to/file.test.ts` selects by file.
+Vitest's `-t`/`--testNamePattern` selects by test name; `vitest run path/to/file.test.ts` selects by
+file.
 
 ## Bundle verification
 
 `bun run verify:bundle` runs `scripts/check-core-bundle.mjs`, which scans `dist/index.js` and
-`dist/index.cjs` for static imports of any optional peer (`stripe`, `@paddle/paddle-node-sdk`,
-`knex`, `bullmq`, `express`, `fastify`, `@nestjs/common`, `reflect-metadata`). If any peer is
-statically imported into the core entry, the script exits non-zero. This guards the zero-required-
-peer guarantee: the core entry must not pull a provider or framework into every consumer's bundle.
+`dist/index.cjs` for static imports of every optional peer declared in `peerDependencies` (read
+dynamically from `package.json`, so the list stays in sync). If any peer is statically imported into
+the core entry, the script exits non-zero. This guards the zero-required-peer guarantee: the core
+entry must not pull a provider or framework into every consumer's bundle.
+
+`bun run verify:exports` runs `scripts/check-exports.mjs`, which checks the `exports` map against the
+built `dist/`: every subpath's `types`/`import`/`require` target must exist, and the core entry is
+imported under both ESM and CJS to confirm it exports `createPayable`. It runs in CI and in
+`prepublishOnly`, so a broken exports map or unbuilt subpath fails before publish.
+
+`bun run verify:consumer -- <package-spec>` creates a temporary consumer, installs the packed
+artifact and its optional peers, typechecks it, imports every declared subpath through ESM and
+CommonJS, runs both CLI help commands, and verifies `payable-prisma sync`.
 
 ## Debugging approaches
 

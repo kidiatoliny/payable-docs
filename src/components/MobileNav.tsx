@@ -1,65 +1,55 @@
-import { useEffect, useState } from 'react';
-import { Menu, X } from 'lucide-react';
-import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { useEffect, useState, type CSSProperties } from 'react';
+import { Menu } from 'lucide-react';
+import {
+  Button,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SidebarProvider,
+} from '@akira-io/ui';
 import type { NavGroup } from '@/lib/nav';
-import { cn } from '@/lib/utils';
+import { DocsNav } from '@/components/DocsNav';
 
 export function MobileNav({ nav, currentSlug }: { nav: NavGroup[]; currentSlug: string }) {
   const [open, setOpen] = useState(false);
-  const [currentPath, setCurrentPath] = useState<string | null>(null);
+  const [currentPath, setCurrentPath] = useState(`/${currentSlug}`);
 
   useEffect(() => {
-    const syncCurrentPath = () => setCurrentPath(window.location.pathname);
+    const syncCurrentPath = () => {
+      setCurrentPath(window.location.pathname);
+      setOpen(false);
+    };
     syncCurrentPath();
     document.addEventListener('astro:after-swap', syncCurrentPath);
     return () => document.removeEventListener('astro:after-swap', syncCurrentPath);
   }, []);
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
-      <DialogPrimitive.Trigger
-        aria-label="Open navigation"
-        className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground lg:hidden"
-      >
-        <Menu className="size-5" />
-      </DialogPrimitive.Trigger>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-        <DialogPrimitive.Content className="fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] overflow-y-auto border-r border-sidebar-border bg-sidebar p-5 shadow-2xl data-[state=open]:animate-in data-[state=open]:slide-in-from-left">
-          <div className="mb-4 flex items-center justify-between">
-            <span className="text-sm font-semibold">Documentation</span>
-            <DialogPrimitive.Close aria-label="Close navigation" className="text-muted-foreground hover:text-foreground">
-              <X className="size-5" />
-            </DialogPrimitive.Close>
-          </div>
-          <DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>
-          <nav className="flex flex-col gap-5">
-            {nav.map((group) => (
-              <div key={group.label}>
-                <p className="mb-1.5 px-2 text-xs font-bold uppercase tracking-wider text-foreground">
-                  {group.label}
-                </p>
-                <ul className="flex flex-col gap-0.5">
-                  {group.items.map((item) => (
-                    <li key={item.id}>
-                      <a
-                        href={item.href}
-                        className={cn(
-                          'block rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                          (currentPath ? item.href === currentPath : item.id === currentSlug) &&
-                            'bg-sidebar-accent font-medium text-sidebar-accent-foreground',
-                        )}
-                      >
-                        {item.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </nav>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Open navigation"
+          className="lg:hidden"
+        >
+          <Menu className="size-5" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-80 max-w-[85vw] overflow-y-auto p-0">
+        <SheetHeader className="border-b border-sidebar-border px-5 py-4">
+          <SheetTitle>Documentation</SheetTitle>
+        </SheetHeader>
+        <SidebarProvider
+          className="min-h-0 bg-background px-2 py-4"
+          style={{ '--sidebar': 'var(--background)' } as CSSProperties}
+        >
+          <DocsNav nav={nav} currentPath={currentPath} onNavigate={() => setOpen(false)} />
+        </SidebarProvider>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -1,9 +1,47 @@
 ---
 title: "Charges and Refunds"
-description: "A charge is a one-off payment against a customer; a refund returns money against a recorded payment, partially or in full. Both persist locally and track..."
+description: "After configuring storage, payable.storedPayments(tenantId) can record funds collected outside a payment adapter. record() requires a canonical customer..."
 sidebar:
   order: 11
 ---
+
+## Canonical local collections
+
+After configuring storage, `payable.storedPayments(tenantId)` can record funds collected outside a
+payment adapter. `record()` requires a canonical customer, money, an explicit `pending` or
+`succeeded` status, and a structured collection method such as `cash`, `bank_transfer`, or `cheque`.
+The resulting payment has `provider` and `providerPaymentId` set to `null`; provider identity is
+routing metadata and must never be fabricated for a local collection.
+
+Pending local payments support `succeed(id)` and the public `void(id)` operation. Void is persisted as
+the existing canonical `canceled` payment status for state-machine compatibility. `refundLocal()`
+records a full or partial return already performed outside a provider, creates an independently
+addressable refund with null provider identity, and atomically updates the payment's refunded amount.
+It can also record a return already completed outside Payable for a provider-backed payment. That
+case requires `confirmedExternally: true` and a non-blank `externalReference`; it never resolves or
+calls the payment provider. Local and provider-backed refunds reserve the same canonical refunded
+amount with compare-and-swap updates, so concurrent operations cannot exceed the payment total.
+
+All local mutations accept an `idempotencyKey`. When an idempotency store is configured, an identical
+key and payload replay the stored result; reusing the key with different evidence returns
+`IDEMPOTENCY_CONFLICT`. HTTP and MCP mutations require a valid key: send exactly one
+`Idempotency-Key` header or the required `idempotencyKey` argument. SDK callers can omit the key and
+intentionally opt out of replay protection. If a local transaction commits but its idempotency result
+cannot be persisted, retrying the key returns `IDEMPOTENCY_RECONCILIATION_REQUIRED` rather than
+duplicating the money movement; reconcile the already-recorded canonical resource first.
+
+Canonical refunds are readable through `storedPayments(tenantId).retrieveRefund(id)` and
+`listRefunds({ limit, cursor, paymentId })`. The list is tenant-scoped, uses opaque bounded cursors,
+and is exposed at `GET /canonical/refunds`, `GET /canonical/refunds/:id`, and the MCP
+`canonical_refunds_list` and `canonical_refund_get` tools.
+
+When authorization is enabled, recording, succeeding, voiding, and refunding use the same charge or
+refund policies as provider-backed operations. Audit `recordedBy` values come only from the resolved
+authorization actor; they are not accepted from public request bodies.
+
+Collection method does not imply settlement status. Store receipts or bank references in
+`externalReference`; do not overload descriptions with routing identity. Provider-backed charge and
+refund operations remain unchanged and continue to carry explicit provider attribution.
 
 A **charge** is a one-off payment against a customer; a **refund** returns money against a recorded
 payment, partially or in full. Both persist locally and track the payment's lifecycle through the
@@ -35,6 +73,8 @@ const payment = await payable.customer(billable).charge({
 
 `ChargeAction.handle`:
 
+0. Calls `assertAuthorized` with `CanChargePolicy`, gated when `deps.authorizationEnabled` is true (a
+   no-op otherwise), using the optional `authorization` on the request.
 1. Requires the provider to be **charge capable** (`isChargeCapable`, i.e. it implements `charge`);
    otherwise throws `ProviderCapabilityNotSupportedError`.
 2. Requires a storage driver (`PAYMENT_STORAGE_REQUIRED`).
@@ -56,6 +96,7 @@ sequenceDiagram
     participant Provider
     participant Storage
     App->>Action: charge({ amount, reference, description })
+    Action->>Action: assertAuthorized (CanChargePolicy, if enabled)
     Action->>Action: assert charge-capable + storage
     Action->>Sync: handle(billable)
     Sync-->>Action: providerCustomerId
@@ -71,18 +112,22 @@ The provider returns a `ChargeResultDTO`: `{ providerPaymentId, status, amount }
 
 ## Refund
 
-`payable.refund(request)` runs `RefundPaymentAction`. The request is `RefundRequest`:
+`payable.refund(request, tenantId?)` runs `RefundPaymentAction`. The optional second argument
+`tenantId?: string | null` scopes the lookup when tenancy is in play. The request is `RefundRequest`:
 
 ```ts
 export interface RefundRequest {
   paymentId: string;
   amount?: Money;
   reason?: string;
+  reference?: string;
+  authorization?: AuthorizationContext;
 }
 ```
 
 `paymentId` is the **local** payment id. Omit `amount` for a full refund; pass a `Money` for a partial
-refund.
+refund. `reference` feeds the refund idempotency key via `IdempotencyKey.forRefund`. `authorization`
+carries the optional `AuthorizationContext` for the refund call.
 
 ```ts
 // full refund
@@ -94,19 +139,30 @@ await payable.refund({ paymentId: payment.id, amount: Money.of(4000, 'USD') });
 
 `RefundPaymentAction.handle`:
 
+0. Calls `assertAuthorized` with `CanRefundPaymentPolicy`, gated when `deps.authorizationEnabled` is
+   true (a no-op otherwise), using the request's optional `authorization`.
 1. Requires a storage driver (`PAYMENT_STORAGE_REQUIRED`).
 2. Loads the payment by id; throws `PayableError` (`PAYMENT_NOT_FOUND`) if it is missing or has no
    `providerPaymentId`.
-3. Asserts the provider's `refunds` capability via `assertProviderCapability`.
-4. Builds a deterministic key with `IdempotencyKey.forRefund` keyed by provider, provider payment id,
+3. Requires the payment to be `succeeded` or `partially_refunded`; otherwise throws `PayableError`
+   (`PAYMENT_NOT_REFUNDABLE`).
+4. Rejects a currency mismatch: if the requested `amount` currency differs from the payment currency,
+   throws `PayableError` (`REFUND_CURRENCY_MISMATCH`).
+5. Guards against over-refund: `remaining = payment.amount - payment.refundedAmount` and
+   `requested = input.amount?.amount() ?? remaining`. If `remaining <= 0` or `requested > remaining`,
+   throws `PayableError` (`REFUND_EXCEEDS_REMAINING`) with context `{ paymentId, requested, remaining }`.
+6. Asserts the provider's `refunds` capability via `assertProviderCapability`.
+7. Builds a deterministic key with `IdempotencyKey.forRefund` keyed by provider, provider payment id,
    amount (defaulting to the full payment amount), and currency.
-5. Calls `provider.refund({ providerPaymentId, amount, reason }, ctx)`.
-6. Rejects a currency mismatch: if the refund DTO currency differs from the payment currency, throws
-   `PayableError` (`REFUND_CURRENCY_MISMATCH`).
-7. Persists a `refunds` row.
-8. Recomputes `refundedAmount = payment.refundedAmount + dto.amount`. Using `PaymentStateMachine`, it
-   transitions the payment to **refunded** when `refundedAmount >= payment.amount`, otherwise to
-   **partially refunded**; then updates the payment's `refundedAmount` and `status`.
+8. Reserves capacity: in a transaction it creates a **pending** `refunds` row up-front and applies the
+   projected `refundedAmount`/`status` to the payment, holding the balance before the provider call.
+9. Calls `provider.refund({ providerPaymentId, amount, reason }, ctx)`. On a provider failure (or a
+   post-call currency mismatch) `releaseReservation` reverts the payment balance and flips the pending
+   refund row to `failed`.
+10. Recomputes `refundedAmount = payment.refundedAmount + dto.amount`. Using `PaymentStateMachine`, it
+    transitions the payment to **refunded** when `refundedAmount >= payment.amount`, otherwise to
+    **partially refunded**; then updates the payment's `refundedAmount` and `status`. A settlement-time
+    re-check re-validates the remaining balance to guard against races before the row is written.
 
 Output: the persisted `Refund` entity.
 
@@ -119,14 +175,20 @@ Refunds accumulate. Charging 9900 then refunding 4000 leaves the payment `partia
 
 ```mermaid
 flowchart TD
-    A[refund request] --> B{payment found?}
+    A[refund request] --> Z{authorized? - if enabled}
+    Z -- no --> ZE[authorization error]
+    Z -- yes --> B{payment found?}
     B -- no --> E[PAYMENT_NOT_FOUND]
-    B -- yes --> C{provider refunds capable?}
+    B -- yes --> R{succeeded or partially_refunded?}
+    R -- no --> RN[PAYMENT_NOT_REFUNDABLE]
+    R -- yes --> G{currency matches payment?}
+    G -- no --> H[REFUND_CURRENCY_MISMATCH]
+    G -- yes --> M{remaining > 0 and requested <= remaining?}
+    M -- no --> N[REFUND_EXCEEDS_REMAINING]
+    M -- yes --> C{provider refunds capable?}
     C -- no --> F[ProviderCapabilityNotSupportedError]
     C -- yes --> D[provider.refund]
-    D --> G{currency matches payment?}
-    G -- no --> H[REFUND_CURRENCY_MISMATCH]
-    G -- yes --> I[persist refund]
+    D --> I[persist refund]
     I --> J{refundedAmount >= payment.amount?}
     J -- yes --> K[status = refunded]
     J -- no --> L[status = partially_refunded]
@@ -134,15 +196,16 @@ flowchart TD
 
 ## Policies
 
-`CanRefundPaymentPolicy`, `CanCreateCheckoutPolicy`, and `CanCreateSubscriptionPolicy` all authorize
-against an `AuthorizationContext`: `isAuthorized` returns `true` only when `allowed === true` and
-`actorId` is a non-empty string.
+`CanChargePolicy`, `CanRefundPaymentPolicy`, `CanCreateCheckoutPolicy`, and
+`CanCreateSubscriptionPolicy` all authorize against an `AuthorizationContext`: authorization succeeds
+only when `allowed === true` and `actorId` is a non-empty string.
 
-These policies are **defined but not yet wired** into `ChargeAction`, `RefundPaymentAction`, or the
-checkout pipeline - none of the actions or pipelines reference them, and only `CanReplayWebhookPolicy`
-is consumed (by `ReplayWebhookAction`). They are reusable authorization helpers for integrators to call
-in their own controllers; today the charge and refund paths perform no actor-level authorization of
-their own.
+These policies are now **enforced** at the front of their respective paths via `assertAuthorized`,
+gated by `deps.authorizationEnabled`: `ChargeAction` asserts `CanChargePolicy` (step 0) and
+`RefundPaymentAction` asserts `CanRefundPaymentPolicy` (step 0), each before any storage or provider
+work. When authorization is disabled the assertion is a no-op, so integrators that do not opt in see
+no behavior change. Callers pass the `AuthorizationContext` through the request's `authorization`
+field.
 
 ## Edge cases
 
@@ -151,7 +214,10 @@ their own.
 - **Provider lacks `refunds` capability.** `RefundPaymentAction` throws via `assertProviderCapability`.
 - **Unknown payment id / no provider payment id.** `PAYMENT_NOT_FOUND`.
 - **Refund currency differs from payment.** `REFUND_CURRENCY_MISMATCH`.
-- **Refund exceeding the remaining balance.** Not blocked by a dedicated guard in this version: the
-  action forwards `amount` to the provider and, after persisting, marks the payment `refunded` once
-  `refundedAmount >= payment.amount`. Enforcement of an over-refund relies on the provider rejecting
-  it; there is no local "already fully refunded" precheck.
+- **Payment not in a refundable state.** A payment that is not `succeeded` or `partially_refunded`
+  throws `PAYMENT_NOT_REFUNDABLE`.
+- **Refund exceeding the remaining balance.** Blocked by a dedicated guard before the provider call:
+  with `remaining = payment.amount - payment.refundedAmount` and
+  `requested = input.amount?.amount() ?? remaining`, the action throws `REFUND_EXCEEDS_REMAINING`
+  (context `{ paymentId, requested, remaining }`) when `remaining <= 0` or `requested > remaining`. A
+  settlement-time re-check re-validates the remaining balance to guard against concurrent refunds.

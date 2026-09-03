@@ -8,10 +8,11 @@ const read = async (path) => {
     return '';
   }
 };
-const [layout, header, sidebar, mobileNav, themeToggle, toc, landingHeader, landingHero, seoHead, styles] = await Promise.all([
+const [layout, header, sidebarShell, sidebar, mobileNav, themeToggle, toc, landingHeader, landingHero, seoHead, styles, globals, codeBlocks, contentTables] = await Promise.all([
   read('../src/layouts/DocLayout.astro'),
   read('../src/components/Header.astro'),
   read('../src/components/Sidebar.astro'),
+  read('../src/components/Sidebar.tsx'),
   read('../src/components/MobileNav.tsx'),
   read('../src/components/ThemeToggle.tsx'),
   read('../src/components/Toc.astro'),
@@ -19,34 +20,45 @@ const [layout, header, sidebar, mobileNav, themeToggle, toc, landingHeader, land
   read('../src/components/landing/LandingHero.astro'),
   read('../src/components/SeoHead.astro'),
   read('../src/styles/docs.css'),
+  read('../src/styles/globals.css'),
+  read('../src/components/CodeBlocks.tsx'),
+  read('../src/components/ContentTables.tsx'),
 ]);
 
 assert.match(layout, /<html lang="en" transition:name="root" transition:animate="none">/);
 assert.match(layout, /import \{ ClientRouter \} from 'astro:transitions'/);
 assert.match(layout, /<ClientRouter fallback="swap" \/>/);
 assert.match(layout, /<Header[^>]*transition:persist="docs-header"/s);
-assert.match(layout, /<Sidebar[^>]*transition:persist="docs-sidebar"/s);
+assert.match(layout, /<Sidebar nav=\{nav\} currentSlug=\{slug\} \/>/);
 assert.doesNotMatch(layout, /<html[^>]*class="dark"/);
 assert.match(layout, /@\/styles\/docs\.css/);
 assert.match(layout, /class="docs-page/);
 assert.match(layout, /class="docs-shell/);
 assert.match(header, /sticky top-0 z-40/);
 assert.match(header, /ThemeToggle/);
-assert.match(header, /class="app-bar/);
 assert.match(header, /class="app-bar-inner/);
 assert.match(header, /class="app-bar-brand/);
 assert.match(header, /github\.com\/akira-io\/payable/);
-assert.match(sidebar, /sticky top-\[52px\]/);
-assert.match(sidebar, /docs-sidebar/);
+assert.match(sidebarShell, /client:only="react"/);
+assert.doesNotMatch(sidebarShell, /transition:persist/);
+assert.match(sidebarShell, /w-72/);
+assert.match(sidebar, /'--sidebar': 'var\(--background\)'/);
 assert.match(sidebar, /astro:after-swap/);
+assert.match(sidebar, /SidebarProvider/);
+assert.match(sidebar, /@akira-io\/ui/);
 assert.match(mobileNav, /astro:after-swap/);
+assert.match(mobileNav, /SheetContent/);
+assert.match(mobileNav, /@akira-io\/ui/);
 assert.match(themeToggle, /useState<Mode \| null>\(null\)/);
 assert.match(themeToggle, /if \(mode === null\) return/);
-assert.match(toc, /docs-toc/);
+assert.match(toc, /aria-current/);
+assert.match(toc, /findActiveHeading/);
 assert.match(landingHeader, /href="\/03-getting-started">Docs</);
 assert.match(landingHero, /href="\/03-getting-started">Read the docs</);
 assert.match(seoHead, /astro:before-swap/);
 assert.match(seoHead, /event\.newDocument/);
-assert.match(styles, /\.docs-page\s*\{[^}]*background:\s*#f5f5f7/s);
-assert.match(styles, /\.dark \.docs-page\s*\{[^}]*background:\s*#111114/s);
-assert.match(styles, /\.docs-article h1\s*\{/);
+assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
+assert.doesNotMatch(globals, /--font-sans\s*:/);
+assert.match(codeBlocks, /@akira-io\/ui\/code/);
+assert.match(contentTables, /Card/);
+assert.match(contentTables, /TableHeader/);

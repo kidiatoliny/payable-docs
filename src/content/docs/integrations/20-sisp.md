@@ -1,14 +1,15 @@
 ---
-title: "SISP (Cabo Verde / vinti4)"
-description: "SISP (Sistema de Pagamentos de Cabo Verde) is the Cabo Verde national payment gateway, also known as vinti4. It is fundamentally different from Stripe and..."
+title: "SISP (Cabo Verde · vinti4)"
+description: "SISP (Sistema de Pagamentos de Cabo Verde) is the Cabo Verde national payment gateway, also known as vinti4. The current Payable adapter implements the..."
 sidebar:
   order: 20
 ---
 
 SISP (Sistema de Pagamentos de Cabo Verde) is the Cabo Verde national payment gateway, also known as
-**vinti4**. It is fundamentally different from Stripe and Paddle: there is no customers API, no
-product/price catalog, no subscriptions, no billing portal, and no asynchronous signed webhook. A
-payment is a one-time, browser-driven, hosted 3D Secure flow:
+**vinti4**. The current Payable adapter implements the browser-driven hosted payment contract shown
+in the official [vinti4 technical example](https://www.vinti4.cv/documentation.aspx?id=585). It does
+not declare customer, catalog, subscription, billing-portal, or asynchronous-webhook capabilities.
+A payment uses this flow:
 
 1. The merchant builds a SHA-512-signed HTML form and the **browser auto-POSTs** it to the vinti4
    hosted page (`https://mc.vinti4net.cv/Client_VbV_v2/biz_vbv_clientdata.jsp`).
@@ -87,6 +88,19 @@ const payable = createPayable({
 `SispProviderOptions` is an alias for `@akira-io/sisp`'s `SispConfig`. Required: `posId`, `posAutCode`,
 `database`. Everything else is optional and forwarded verbatim to node-sisp.
 
+## Declared capabilities
+
+```ts
+capabilities(): ProviderCapabilities {
+  return new Set(['checkout']);
+}
+```
+
+SISP declares only the current Payable capabilities it supports directly. It does not declare
+`charges` because there is no server-to-server charge API; every payment starts through hosted
+checkout. It does not declare `webhooks` because vinti4 reconciliation is a browser callback handled
+through `RedirectCallbackCapable`, not an asynchronous signed provider webhook.
+
 ### Injecting a pre-built instance (tests / advanced)
 
 A second constructor argument accepts an already-created node-sisp instance (or a structural
@@ -118,14 +132,20 @@ res.send(session.html);
 
 What `redirectCheckout(...).create()` does:
 
-1. Ensures a **local customer** for the billable (no provider-side customer - SISP has none, so
-   `providerCustomerId` is `null`). See [Customers](/features/08-customers-billable/).
-2. Generates the `merchantRef` using the configured `generators.merchantReference()` (default forwarded
-   from node-sisp; override it through `SispConfig`).
+1. Ensures a **logical customer** for the billable. SISP has no provider-side customer, so no
+   `CustomerProviderBinding` is created. See [Customers](/features/08-customers-billable/).
+2. Derives the `merchantRef`. When an `idempotencyKey` is present, it is hashed with SHA-256 and the
+   reference becomes `R` + the first 14 hex characters upper-cased (`sispMerchantReference`), so the same
+   key always yields the same reference. With no idempotency key it falls back to the configured
+   `generators.merchantReference()` (forwarded from node-sisp; override it through `SispConfig`).
 3. Calls node-sisp's `handlePayment`, which **persists** the pending transaction and renders the signed
    auto-submit form - node-sisp stays the protocol store of record.
 4. Records a pending `Payment` (`status: 'pending'`, `providerPaymentId: merchantRef`, linked to the
    local customer).
+
+`createCheckoutSession` guards its inputs up front: a non-`payment` mode throws
+`PROVIDER_OPERATION_UNSUPPORTED` (SISP only supports one-time payment checkouts), and a missing amount
+throws `CHECKOUT_AMOUNT_REQUIRED`.
 
 `CheckoutSessionDTO` gained an optional `html` field for this redirect-form shape; Stripe/Paddle keep
 returning `url` only.
@@ -181,9 +201,12 @@ sequenceDiagram
 
 ## Refunds
 
-`payable.customer(billable).refund(...)` (or the refund resource) routes to `SispProvider.refund`, which
-looks the node-sisp transaction up by `providerPaymentId` (= `merchantRef`) and runs node-sisp's refund
-builder. A missing transaction throws `PROVIDER_SISP_TRANSACTION_NOT_FOUND`.
+SISP does **not** declare the `refunds` capability. The vinti4 integration has no server-to-server
+reversal API: node-sisp's refund builder only updates the local transaction record, so a "refund"
+through it would report success while the customer never receives funds. `payable.refund(...)` on a
+SISP payment therefore throws `PROVIDER_CAPABILITY_NOT_SUPPORTED` and leaves the payment untouched.
+Reversals must be performed through SISP's own back office until the gateway exposes a real refund
+endpoint.
 
 ## Amounts
 

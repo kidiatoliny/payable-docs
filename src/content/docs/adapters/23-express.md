@@ -2,7 +2,7 @@
 title: "Express Adapter"
 description: "@akira-io/payable/express exposes createExpressPayableRoutes(payable, options?), which builds an Express Router wired to a Payable instance. The router is..."
 sidebar:
-  order: 22
+  order: 23
 ---
 
 `@akira-io/payable/express` exposes `createExpressPayableRoutes(payable, options?)`, which builds
@@ -15,6 +15,10 @@ Translate HTTP requests into `Payable` facade calls and `PayableError` instances
 responses. The adapter owns request parsing (including raw-body parsing for webhooks) and error
 mapping; it owns no business logic.
 
+The adapter does not register a generic audit-write route. Authenticate and authorize host domain
+operations in the application, then call `payable.audit(tenantId)` directly. See
+[Custom domain audit](/examples/46-custom-domain-audit/).
+
 ## API
 
 ```ts
@@ -26,6 +30,8 @@ function createExpressPayableRoutes(
 interface ExpressPayableOptions {
   webhookSignatureHeader?: string; // default: 'stripe-signature'
   authenticate?: RequestHandler; // optional auth middleware, applied after webhook routes
+  resolveTenant?: (req: Request) => string | null | undefined;
+  resolveAuthorization?: (req: Request) => AuthorizationContext | undefined;
 }
 ```
 
@@ -39,7 +45,8 @@ handler last:
 5. `registerInvoiceRoutes`
 6. `registerPaymentRoutes`
 7. `registerRefundRoutes`
-8. `payableErrorHandler` (via `router.use`)
+8. `registerCatalogRoutes`
+9. `payableErrorHandler` (via `router.use`)
 
 ## Routes mounted
 
@@ -55,23 +62,86 @@ Every method and path below is registered by the adapter. Paths are relative to 
 | POST | `/subscriptions/:name/resume` | 200 | Resume a canceled subscription |
 | POST | `/subscriptions/:name/swap` | 200 | Swap to a new price |
 | POST | `/refunds` | 201 | Refund a payment |
-| POST | `/customers` | 201 | Create (or get) a customer at the provider |
-| PATCH | `/customers` | 200 | Update a customer's email/name |
+| POST | `/customers` | 201 | Create or get a logical customer in local storage |
+| PATCH | `/customers` | 200 | Update a logical customer's email or name in local storage |
+| POST | `/customers/sync` | 200 | Synchronize a logical customer with the required provider name |
 | GET | `/customers` | 200 | Get a customer by `billableType`+`billableId` (query) |
 | GET | `/invoices` | 200 | List a billable's invoices (query: billableType, billableId, limit?) |
 | GET | `/invoices/:id/pdf` | 200 | Download an invoice PDF (`application/pdf`; 404 if absent, 422 if the provider lacks `invoicePdf`) |
 | GET | `/payments` | 200 | List a billable's payments (query: billableType, billableId) |
+| GET | `/products` | 200 | List products (query: limit?, cursor?, active?) |
+| GET | `/products/:id` | 200 | Retrieve a product by provider id |
 | POST | `/products` | 201 | Create a product at the provider |
 | PATCH | `/products` | 200 | Update a product |
+| POST | `/products/:id/activate` | 200 | Activate a product |
+| POST | `/products/:id/archive` | 200 | Archive a product without deleting it |
+| GET | `/prices` | 200 | List prices (query: limit?, cursor?, active?, providerProductId?) |
+| GET | `/prices/:id` | 200 | Retrieve a price by provider id |
 | POST | `/prices` | 201 | Create a price for a product |
+| POST | `/prices/:id/activate` | 200 | Activate a price |
+| POST | `/prices/:id/archive` | 200 | Archive a price without deleting it |
 | GET | `/subscriptions` | 200 | List a billable's subscriptions (query: billableType, billableId, limit?) |
 | GET | `/subscriptions/:name` | 200 | Get one subscription by name (404 if absent) |
 | GET | `/refunds` | 200 | List a payment's refunds (query: paymentId, limit?) |
+
+### Canonical collection routes
+
+The following storage-only routes do not resolve or call a payment provider:
+
+| Resource | Page route | Exact route |
+| --- | --- | --- |
+| Customers | `GET /canonical/customers` | `GET /canonical/customers/:id` |
+| Products | `GET /canonical/products` | `GET /canonical/products/:id` |
+| Prices | `GET /canonical/prices` | `GET /canonical/prices/:id` |
+| Subscriptions | `GET /canonical/subscriptions` | `GET /canonical/subscriptions/:id` |
+| Payments | `GET /canonical/payments` | `GET /canonical/payments/:id` |
+
+Page routes return `{ items, nextCursor, hasMore }`, default to 25 items, and accept at most 100.
+Pass an opaque cursor with the same tenant and filters. `includeBindings=true` is available for
+customers, products, prices, and subscriptions. The unprefixed product and price routes remain
+provider-native; the unprefixed subscription and payment reads retain their array-returning
+billable compatibility contract.
+
+### Canonical subscription price migration routes
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| POST | `/canonical/subscription-price-migrations` | Create one immutable preview |
+| GET | `/canonical/subscription-price-migrations` | List a bounded page by subscription or status |
+| GET | `/canonical/subscription-price-migrations/:id` | Retrieve one tenant-scoped migration |
+| POST | `/canonical/subscription-price-migrations/:id/approve` | Execute an immediate preview or schedule delayed work |
+| POST | `/canonical/subscription-price-migrations/:id/cancel` | Cancel a previewed, scheduled, or failed migration |
+| POST | `/canonical/subscription-price-migrations/:id/retry` | Retry a confirmed recoverable failure |
+
+Preview bodies use canonical `subscriptionId`, `targetPriceId`, optional canonical `itemId`, optional
+positive `quantity`, explicit `effectiveTiming`, `prorationPolicy`, and `paymentFailurePolicy`.
+`scheduled` also requires an RFC 3339 `effectiveAt`; other timings reject that field. Every body is
+strict, so unknown keys fail validation.
+
+All six routes require a non-empty tenant from `resolveTenant` and an allowed authorization context
+from `resolveAuthorization` whose `tenantId` matches. Every POST requires exactly one valid
+`Idempotency-Key` header. The create, approve, cancel, and retry bodies are limited to 64 KiB by
+default and use the configured fixed-window mutation rate boundary. List limits are 1 through 100
+and cursors are opaque.
+
+The adapter returns allow-listed canonical fields only. Provider identifiers, execution tokens,
+request hashes, internal execution evidence, and provider diagnostics are not response fields.
+There is no HTTP execute, due-page, scheduler, worker, or queue route; applications run due work
+through the core resource.
 
 All routes above are wired to working implementations. `/customers` (POST/PATCH/GET), `/invoices`,
 and `/payments` resolve a `Payable` resource for the request's billable (and tenant, when tenancy is
 on). The `GET` read routes take `billableType` and `billableId` as query parameters; `/invoices`
 also accepts an optional `limit`.
+
+List endpoints that accept a `limit` cap it at `MAX_LIST_LIMIT = 100`
+(`src/presentation/shared/schemas.ts`); a larger value fails validation with `VALIDATION_FAILED`
+(422).
+
+Catalog lists accept an opaque `cursor`, default to `active=true`, and return
+`{ data, nextCursor }`. Product lists accept `limit`, `cursor`, and `active`; price lists also accept
+`providerProductId`. The adapter exposes activation and archival instead of product or price delete
+routes. Changing price monetary terms requires creating a replacement price.
 
 ## Request bodies
 
@@ -142,25 +212,43 @@ Code-to-status table:
 | `INVALID_WEBHOOK_PAYLOAD` | 400 |
 | `WEBHOOK_PROVIDER_AMBIGUOUS` | 400 |
 | `VALIDATION_FAILED` | 422 |
+| `COLLECTION_CURSOR_INVALID` | 400 |
+| `COLLECTION_LIMIT_INVALID` | 422 |
 | `PROVIDER_NOT_FOUND` | 404 |
 | `CUSTOMER_NOT_FOUND` | 404 |
 | `SUBSCRIPTION_NOT_FOUND` | 404 |
+| `SUBSCRIPTION_MIGRATION_NOT_FOUND` | 404 |
+| `SUBSCRIPTION_MIGRATION_PREVIEW_STALE` | 409 |
+| `SUBSCRIPTION_MIGRATION_TARGET_INELIGIBLE` | 422 |
+| `SUBSCRIPTION_MIGRATION_STATE_CONFLICT` | 409 |
+| `SUBSCRIPTION_MIGRATION_RECONCILIATION_REQUIRED` | 409 |
+| `SUBSCRIPTION_MIGRATION_PREVIEW_STORAGE_REQUIRED` | 500 |
+| `SUBSCRIPTION_MIGRATION_OPERATION_FAILED` | 500 |
+| `PAYLOAD_TOO_LARGE` | 413 |
+| `RATE_LIMIT_EXCEEDED` | 429 |
 | `IDEMPOTENCY_CONFLICT` | 409 |
 | `IDEMPOTENCY_IN_PROGRESS` | 409 |
+| `INVALID_IDEMPOTENCY_KEY` | 400 |
+| `CATALOG_IDEMPOTENCY_STORAGE_REQUIRED` | 500 |
+| `IDEMPOTENCY_RECONCILIATION_REQUIRED` | 409 |
+| `IDEMPOTENCY_RESULT_PERSISTENCE_FAILED` | 500 |
 | `PROVIDER_CAPABILITY_NOT_SUPPORTED` | 422 |
 | `CHECKOUT_PRICE_REQUIRED` | 422 |
 | `CHECKOUT_LINE_ITEMS_REQUIRED` | 422 |
 | `SUBSCRIPTION_PRICE_REQUIRED` | 422 |
 | `PAYMENT_NOT_FOUND` | 404 |
+| `PRODUCT_NOT_FOUND` | 404 |
+| `PRICE_NOT_FOUND` | 404 |
 | `WEBHOOK_EVENT_NOT_FOUND` | 404 |
 | `WEBHOOK_REPLAY_DENIED` | 403 |
+| `AUTHORIZATION_DENIED` | 403 |
 | `WEBHOOK_STORAGE_REQUIRED` | 500 |
 | (any other code, or non-`PayableError`) | 500 |
 
 ## No built-in authentication
 
-The adapter installs no authentication or authorization middleware. Every route except the webhook
-routes is unprotected at the adapter level:
+The adapter installs no authentication middleware. Most routes except webhooks are unprotected at
+the adapter level:
 
 - `/checkout`, `/subscriptions/:name/*`, and `/refunds` accept whatever `billable` or `paymentId`
   the request supplies. The adapter does not verify that the caller owns the billable record or the
@@ -168,10 +256,22 @@ routes is unprotected at the adapter level:
 - The webhook routes are protected only by provider signature verification (performed inside
   `payable.receiveWebhook`), not by request authentication.
 
+Canonical subscription price migration routes fail closed unless `resolveTenant` and
+`resolveAuthorization` produce the matching tenant and an allowed actor. Authenticate the request
+before those resolvers run; adapter authorization does not establish caller identity.
+
 Authenticating the request and verifying ownership of the billable or payment is the caller's
 responsibility. Pass an `authenticate` middleware in `ExpressPayableOptions` to have it applied
 inside the router after the webhook routes and before checkout/subscription/refund, or mount your
-own middleware ahead of the Payable router. See `docs/27-security.md`.
+own middleware ahead of the Payable router. See `docs/28-security.md`.
+
+## Catalog authorization
+
+Authenticate the caller before the catalog routes run, then use `resolveAuthorization` to derive an
+`AuthorizationContext` from that trusted identity. For each catalog mutation, `resolveAuthorization`
+runs once. Express forwards its returned object unchanged in `CatalogMutationOptions`; the core
+resource makes the final authorization decision. A denied catalog write returns `AUTHORIZATION_DENIED`
+before capability validation or provider calls.
 
 ```ts
 app.use(
@@ -179,6 +279,38 @@ app.use(
   createExpressPayableRoutes(payable, { authenticate: requireApiKey }),
 );
 ```
+
+With catalog authorization enabled:
+
+```ts
+createExpressPayableRoutes(payable, {
+  authenticate: requireApiKey,
+  resolveAuthorization: (req) => ({
+    allowed: true,
+    actorId: req.user.id,
+    tenantId: req.user.tenantId,
+  }),
+});
+```
+
+## Catalog idempotency
+
+Every product and price mutation accepts one `Idempotency-Key` header. Express validates the header
+before calling the core resource and forwards it as `CatalogMutationOptions.idempotencyKey`. Duplicate
+header lines, blank values, surrounding whitespace, and values longer than 255 Unicode scalar values
+return `INVALID_IDEMPOTENCY_KEY` with HTTP 400.
+
+```bash
+curl -X POST https://example.test/products \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: catalog-product-pro-v1' \
+  -d '{"name":"Pro"}'
+```
+
+Reuse the header value only with the same method, route operation, tenant, provider, and request
+body. The core scopes the effective identity and returns HTTP 409 for an idempotency conflict or a
+reconciliation-required result. See [Idempotency](/features/14-idempotency/) for the provider and
+storage matrix.
 
 ## Mounting example
 

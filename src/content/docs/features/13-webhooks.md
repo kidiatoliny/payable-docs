@@ -12,6 +12,26 @@ it asynchronously. Processing reconciles local state, writes an audit log, stage
 and emits a domain event. Every step is idempotent so the same provider event can arrive twice
 without double-applying.
 
+Treasury webhooks use a parallel entry point and queue. They share durable delivery storage and
+claim semantics, but never run payment or subscription reconciliation.
+
+```ts
+await payable.receiveTreasuryWebhook({
+  provider: 'revolut',
+  payload: rawBody,
+  signature: request.headers['revolut-signature'],
+  headers: {
+    'Revolut-Request-Timestamp': request.headers['revolut-request-timestamp'],
+  },
+});
+```
+
+Treasury processing dispatches `payable.treasury-webhook.process`, writes audit actions prefixed
+with `treasury.webhook.`, creates outbox events only for normalized types, and emits
+`treasury.webhook.processed`. Exact provider redeliveries reuse the stored event and retry only
+pending or failed processing. Provider `occurredAt` timestamps survive storage and retry, appear in
+normalized Treasury outbox payloads, and become the domain event occurrence time.
+
 ## Pipeline overview
 
 ```mermaid
@@ -126,11 +146,14 @@ const verified = await this.deps.provider.verifyWebhook({
 });
 const tenantId = await this.resolveTenant(input);
 const stored = await new StoreWebhookEventAction(this.deps).handle({ ... });
-if (stored.duplicate) {
-  return { webhookEventId: stored.id, duplicate: true };
+const reprocessable = stored.status === 'pending' || stored.status === 'failed';
+if (stored.duplicate && !reprocessable) {
+  return { webhookEventId: stored.id, duplicate: true, status: stored.status };
 }
 await new DispatchWebhookJobAction(this.deps.queue).handle({ ... });
-return { webhookEventId: stored.id, duplicate: false };
+const settled = await this.deps.storage.webhookEvents.findById(stored.id, tenantId);
+const status = settled?.status ?? stored.status;
+return { webhookEventId: stored.id, duplicate: stored.duplicate, status };
 ```
 
 `verifyWebhook` is provider-specific. For Stripe
@@ -190,8 +213,10 @@ Stored fields (`src/domain/entities/webhook-event.entity.ts`): `provider`, `prov
 `payload`, `data`, and `headers` columns are sealed as ciphertext at rest (see
 [Reliability](/features/15-reliability/)).
 
-A duplicate short-circuits the pipeline: it is **not** re-dispatched to the queue and returns
-`duplicate: true`.
+Duplicate handling depends on the stored status. A duplicate in a terminal/processed state
+short-circuits: it is **not** re-dispatched to the queue and returns `duplicate: true`. A duplicate
+still in a reprocessable state (`pending` or `failed`) **may** be re-dispatched - the short-circuit
+only fires when `duplicate && !reprocessable`.
 
 ## Step 3 - Dispatch to the queue
 
@@ -227,19 +252,42 @@ operates on the persisted, deduplicated record rather than trusting the dispatch
 `ProcessWebhookPipeline` (`src/application/pipelines/webhooks/process-webhook.pipeline.ts`) runs the
 side effects in order:
 
-1. **Reconcile local state.** `provider.reconcileSubscription(verified)` returns a subscription DTO
-   or `null`. If a DTO is returned and a local subscription exists for that provider id, the local
-   row is patched with `status`, `currentPeriodEnd`, `trialEndsAt`, and - when the status is
-   `canceled` - `endsAt`. If the provider returns `null` or there is no matching local
-   subscription, reconciliation is a no-op.
+1. **Reconcile local state.** When the provider implements `PaymentWebhookCapable`,
+   `provider.reconcilePayment(verified)` can return a payment reconciliation DTO. If a local payment
+   exists for that provider payment id, `PaymentStateMachine.tryTransitionTo(dto.status)` gates the
+   status patch. Missing payments and invalid transitions are no-ops, so stale provider events cannot
+   move a final local payment back to a failed or pending state. Subscription reconciliation then runs
+   through `provider.reconcileSubscription(verified)`, which returns a subscription DTO or `null`. If a
+   DTO is returned and a local subscription exists for that provider id, the transition is gated by
+   `reconcileSubscriptionStatus(local.status, dto.status)`: the patch is applied only when
+   `reconciliation.applied` is `true`, and the persisted status is `reconciliation.status` (validated
+   by the state machine) **not** the raw `dto.status`. When applied, the local row is patched with that
+   `status`, `currentPeriodEnd`, `trialEndsAt`, and - when the status is `canceled` - `endsAt`. If the
+   provider returns `null`, there is no matching local subscription, or the state machine rejects the
+   transition, reconciliation is a no-op.
 2. **Audit log.** Writes an immutable entry with `action: webhook.<type>`, `actorType: 'provider'`,
-   `actorId: <providerName>`, `resourceType: 'webhook_event'`, `before: null`, `after: data`, and
-   the correlation id.
+   `actorId: <providerName>`, `resourceType: 'webhook_event'`, `before: null`, `after: data`,
+   `metadata: { normalizedType }`, and the correlation id.
 3. **Outbox.** If `normalizedType` is set, stages an outbox event of type `<normalizedType>.v1`
-   carrying `{ providerEventId, data }`. Unmapped events (normalizedType `null`) are stored and
-   processed but produce no outbox event.
+   carrying `{ providerEventId, data }` with `dedupeKey: webhook:<webhookEventId>:<normalizedType>`,
+   making the write idempotent across reprocessing. Unmapped events (normalizedType `null`) are
+   stored and processed but produce no outbox event.
 4. **Mark processed.** `webhookEvents.markStatus(id, 'processed', occurredAt)`.
 5. **Emit.** Emits `WebhookProcessedEvent` on the event bus with the correlation id.
+
+## Reading stored events
+
+`WebhookEventResource` (`src/application/builders/webhook-event-resource.ts`) exposes the stored
+events for read access. Both `list` and `get` map each row through `toView`, returning a
+`WebhookEventView = Omit<WebhookEvent, 'signature'>`:
+
+```ts
+export type WebhookEventView = Omit<WebhookEvent, 'signature'>;
+```
+
+The stored provider `signature` is **never** exposed in read responses - it is stripped from every
+list and get result so the raw provider signature stays internal to the verification and replay
+paths.
 
 ## Replay
 
@@ -251,16 +299,26 @@ A previously stored webhook event can be reprocessed through the same pipeline.
 if (!this.policy.authorize(context)) {
   throw new PayableError('Webhook replay not permitted', { code: 'WEBHOOK_REPLAY_DENIED' });
 }
-const event = await this.deps.storage.webhookEvents.findById(webhookEventId);
+const event = await this.deps.storage.webhookEvents.findById(webhookEventId, context.tenantId);
 if (!event) { throw new PayableError(..., { code: 'WEBHOOK_EVENT_NOT_FOUND' }); }
-if (context.tenantId !== undefined && (event.tenantId ?? null) !== (context.tenantId ?? null)) {
+if ((event.tenantId ?? null) !== (context.tenantId ?? null)) {
   throw new PayableError('Webhook replay not permitted', { code: 'WEBHOOK_REPLAY_DENIED' });
 }
 ```
 
-Replay runs `ProcessWebhookPipeline` directly (it does not re-verify a signature or re-store the
-event) with a **new** correlation id, so the replay is traceable as a distinct run. It does not
-re-dispatch to the queue.
+Replay **re-verifies** before reprocessing. `verify(event)` runs first:
+
+- For a webhook-capable provider, a stored `signature` of `null` throws `WEBHOOK_REPLAY_UNVERIFIABLE`
+  (fail closed); otherwise it re-runs `provider.verifyWebhook({ payload, signature, headers })` from
+  the stored fields.
+- A non-webhook-capable provider skips verification and rebuilds the `VerifiedWebhook` from the
+  stored `providerEventId`, `type`, `normalizedType`, and `data`.
+
+It then claims the event (`claim(event.id, tenantId, { replay: true })`); if no claim token is
+returned the replay is an idempotent no-op and returns. With a token it runs `ProcessWebhookPipeline`
+directly (it does not re-store the event or re-dispatch to the queue) with a **new** correlation id,
+so the replay is traceable as a distinct run. A `WEBHOOK_CLAIM_LOST` error returns quietly; any other
+error marks the event `failed` and is rethrown.
 
 ### Replay authorization
 
@@ -277,8 +335,10 @@ private hasActor(context: ReplayWebhookContext): boolean {
 ```
 
 So `replayWebhook` only proceeds when `context.allowed === true` and `context.actorId` is set. In
-addition, when `context.tenantId` is provided it must match the stored event's tenant; a mismatch is
-denied with `WEBHOOK_REPLAY_DENIED`.
+addition, the stored event's tenant is checked unconditionally: `event.tenantId ?? null` must equal
+`context.tenantId ?? null`, so a tenant-scoped event cannot be replayed without supplying its matching
+`tenantId` (and a null-tenant event requires no tenant). A mismatch is denied with
+`WEBHOOK_REPLAY_DENIED`.
 
 ## Inputs and outputs
 
@@ -298,6 +358,7 @@ Result:
 export interface ReceiveWebhookResult {
   webhookEventId: string;
   duplicate: boolean;
+  status: WebhookEventStatus;
 }
 ```
 
@@ -309,7 +370,8 @@ export interface ReceiveWebhookResult {
 | Body is not a raw buffer                   | `INVALID_WEBHOOK_PAYLOAD` → HTTP 400                           |
 | Multiple providers, no `:provider`         | `WEBHOOK_PROVIDER_AMBIGUOUS` → HTTP 400                        |
 | No storage driver configured               | `WEBHOOK_STORAGE_REQUIRED` → HTTP 500                          |
-| Duplicate event (same provider event id)   | Returns `duplicate: true`, no requeue, no reprocess           |
+| Duplicate event in a terminal/processed state | Returns `duplicate: true`, no requeue, no reprocess        |
+| Duplicate event still `pending`/`failed`   | May be re-dispatched (reprocessable)                          |
 | Concurrent receive of the same event       | Insert race re-queried; second caller gets `duplicate: true`  |
 | Unknown / unmapped event type              | Stored and processed; `normalizedType` is `null`; no outbox event |
 | `reconcileSubscription` returns `null`     | No local state change; audit + outbox + processed still run   |
@@ -317,7 +379,13 @@ export interface ReceiveWebhookResult {
 | Event id not found during process/replay   | `WEBHOOK_EVENT_NOT_FOUND` → HTTP 404                           |
 | Replay without `allowed`/`actorId`         | `WEBHOOK_REPLAY_DENIED` → HTTP 403                             |
 | Replay with mismatched tenant              | `WEBHOOK_REPLAY_DENIED` → HTTP 403                             |
+| Replay of an event with no stored signature (webhook-capable provider) | `WEBHOOK_REPLAY_UNVERIFIABLE` (fail closed) |
 
-> `WebhookDeliveryService` (`src/application/services/webhook-delivery/webhook-delivery-service.ts`)
-> is a placeholder for outbound webhook delivery and currently throws `NOT_IMPLEMENTED` (Phase 11).
-> The pipeline above covers **inbound** provider webhooks only.
+> The pipeline above covers **inbound** provider webhooks only. Outbound delivery to your own
+> endpoints is handled by `WebhookDeliveryService`
+> (`src/application/services/webhook-delivery/webhook-delivery-service.ts`). It resolves the target
+> host, validates every resolved IP, and then **pins** the socket to a validated address via a
+> custom `lookup` (`pinnedLookup`) so the connection cannot be re-resolved to a different host
+> between validation and connect - this defeats DNS rebinding. It also refuses redirects
+> (`redirect: 'manual'`; a `3xx` is treated as a failed, blocked delivery) so a target cannot bounce
+> the request to a non-routable host. See [Security](/28-security/) for the egress posture.

@@ -1,0 +1,274 @@
+---
+title: "Fastify Adapter"
+description: "@akira-io/payable/fastify exposes createFastifyPayablePlugin(payable, options?), which returns a FastifyPluginAsync. Register it on a Fastify instance..."
+sidebar:
+  order: 24
+---
+
+`@akira-io/payable/fastify` exposes `createFastifyPayablePlugin(payable, options?)`, which returns a
+`FastifyPluginAsync`. Register it on a Fastify instance, optionally under a route prefix.
+
+## Purpose
+
+Bridge Fastify requests to the `Payable` facade and `PayableError` instances to HTTP replies. The
+plugin sets a Fastify error handler and registers the webhook routes inside an isolated scope so it
+can swap the content-type parser without affecting the rest of the application.
+
+The plugin does not register a generic audit-write route. Authenticate and authorize host domain
+operations in the application, then call `payable.audit(tenantId)` directly. See
+[Custom domain audit](/examples/46-custom-domain-audit/).
+
+## API
+
+```ts
+function createFastifyPayablePlugin(
+  payable: Payable,
+  options?: FastifyPayableOptions,
+): FastifyPluginAsync;
+
+interface FastifyPayableOptions {
+  webhookSignatureHeader?: string; // default: 'stripe-signature'
+  authenticate?: onRequestHookHandler;
+  resolveTenant?: (request: FastifyRequest) => string | null | undefined;
+  resolveAuthorization?: (request: FastifyRequest) => AuthorizationContext | undefined;
+  rateLimit?: RateLimitPluginOptions;
+}
+```
+
+The plugin performs, in order:
+
+1. `fastify.setErrorHandler(payableErrorReply)`.
+2. Registers `@fastify/rate-limit` with the plugin defaults, merging `options.rateLimit` over them.
+3. Registers webhook routes inside a nested `fastify.register(...)` scope.
+4. Registers checkout, subscription, refund, customer, read (invoices/payments/subscriptions/refunds),
+   and catalog (products/prices) routes inside an authenticated scope. When `options.authenticate` is
+   set, it is added as an `onRequest` hook on that scope.
+
+## Routes registered
+
+| Method | Path | Status (success) | Behavior |
+| --- | --- | --- | --- |
+| POST | `/webhooks` | 200 | Default-provider webhook receipt |
+| POST | `/webhooks/:provider` | 200 | Provider-scoped webhook receipt |
+| POST | `/checkout` | 201 | Create a subscription checkout session |
+| POST | `/subscriptions/:name/cancel` | 200 | Cancel at period end |
+| POST | `/subscriptions/:name/cancel-now` | 200 | Cancel immediately |
+| POST | `/subscriptions/:name/resume` | 200 | Resume a canceled subscription |
+| POST | `/subscriptions/:name/swap` | 200 | Swap to a new price |
+| POST | `/customers` | 201 | Create or get a logical customer in local storage |
+| PATCH | `/customers` | 200 | Update a logical customer's email or name in local storage |
+| POST | `/customers/sync` | 200 | Synchronize a logical customer with the required provider name |
+| GET | `/customers` | 200 | Get a customer by `billableType`+`billableId` (query) |
+| GET | `/invoices` | 200 | List a billable's invoices (query: billableType, billableId, limit?) |
+| GET | `/invoices/:id/pdf` | 200 | Download an invoice PDF (`application/pdf`; 404 if absent, 422 if the provider lacks `invoicePdf`) |
+| GET | `/payments` | 200 | List a billable's payments (query: billableType, billableId) |
+| GET | `/products` | 200 | List products (query: limit?, cursor?, active?) |
+| GET | `/products/:id` | 200 | Retrieve a product by provider id |
+| POST | `/products` | 201 | Create a product at the provider |
+| PATCH | `/products` | 200 | Update a product |
+| POST | `/products/:id/activate` | 200 | Activate a product |
+| POST | `/products/:id/archive` | 200 | Archive a product without deleting it |
+| GET | `/prices` | 200 | List prices (query: limit?, cursor?, active?, providerProductId?) |
+| GET | `/prices/:id` | 200 | Retrieve a price by provider id |
+| POST | `/prices` | 201 | Create a price for a product |
+| POST | `/prices/:id/activate` | 200 | Activate a price |
+| POST | `/prices/:id/archive` | 200 | Archive a price without deleting it |
+| GET | `/subscriptions` | 200 | List a billable's subscriptions (query: billableType, billableId, limit?) |
+| GET | `/subscriptions/:name` | 200 | Get one subscription by name (404 if absent) |
+| POST | `/refunds` | 201 | Refund a payment |
+| GET | `/refunds` | 200 | List a payment's refunds (query: paymentId, limit?) |
+
+### Canonical collection routes
+
+Fastify exposes the same provider-neutral storage routes as Express:
+
+| Resource | Page route | Exact route |
+| --- | --- | --- |
+| Customers | `GET /canonical/customers` | `GET /canonical/customers/:id` |
+| Products | `GET /canonical/products` | `GET /canonical/products/:id` |
+| Prices | `GET /canonical/prices` | `GET /canonical/prices/:id` |
+| Subscriptions | `GET /canonical/subscriptions` | `GET /canonical/subscriptions/:id` |
+| Payments | `GET /canonical/payments` | `GET /canonical/payments/:id` |
+
+Page responses use `{ items, nextCursor, hasMore }`, default to 25 items, and accept at most 100.
+These routes use the request tenant and never resolve a payment provider. The unprefixed catalogue
+routes remain provider-native, while unprefixed subscription and payment reads preserve their
+existing array contract.
+
+### Canonical subscription price migration routes
+
+Fastify exposes the same six routes and provider-neutral DTOs as Express:
+
+| Method | Path |
+| --- | --- |
+| POST | `/canonical/subscription-price-migrations` |
+| GET | `/canonical/subscription-price-migrations` |
+| GET | `/canonical/subscription-price-migrations/:id` |
+| POST | `/canonical/subscription-price-migrations/:id/approve` |
+| POST | `/canonical/subscription-price-migrations/:id/cancel` |
+| POST | `/canonical/subscription-price-migrations/:id/retry` |
+
+The create body requires canonical subscription and target-price IDs, explicit timing and policies,
+and rejects unknown keys. Scheduled requests require an RFC 3339 `effectiveAt`; immediate and
+next-renewal requests reject it. Every POST requires one `Idempotency-Key` header. All routes require
+a non-empty resolved tenant and a matching allowed authorization context.
+
+Mutation routes use Fastify's 64 KiB body limit and route rate-limit configuration. Pages accept
+limits from 1 through 100 and an opaque cursor. Responses exclude provider identifiers, execution
+tokens, request hashes, internal execution evidence, and stored provider diagnostics. Automatic
+execution and due-page work remain core resource operations and are not HTTP routes.
+
+## Parity with Express
+
+This adapter exposes the same route set as Express: webhooks, checkout, subscription management
+(`cancel`, `cancel-now`, `resume`, `swap`), subscription reads, customers, invoices, payments,
+products, prices, refunds (create and list), and canonical subscription price migrations.
+
+Every JSON route parses its body or query with the shared Zod schemas in
+`src/presentation/shared/schemas.ts` via `parseBody`, so a malformed body is rejected with
+`VALIDATION_FAILED` (HTTP 422), the same as Express. List endpoints that accept a `limit` cap it at
+`MAX_LIST_LIMIT = 100`; a larger value fails validation with `VALIDATION_FAILED` (422).
+
+Catalog lists accept an opaque `cursor`, default to `active=true`, and return
+`{ data, nextCursor }`. Product lists accept `limit`, `cursor`, and `active`; price lists also accept
+`providerProductId`. The plugin exposes activation and archival instead of product or price delete
+routes. Changing price monetary terms requires creating a replacement price.
+
+## Raw-body handling for webhooks
+
+The webhook routes are registered inside a dedicated `fastify.register(...)` scope. Within that
+scope, the plugin removes all content-type parsers and installs a single buffer parser, so the
+webhook handler receives the raw request `Buffer`:
+
+```ts
+scope.removeAllContentTypeParsers();
+scope.addContentTypeParser('*', { parseAs: 'buffer' }, (_request, body, done) => {
+  done(null, body);
+});
+```
+
+Because this is done inside an isolated scope, the buffer parser applies only to the webhook routes;
+checkout and subscription routes keep Fastify's default JSON parsing. The handler converts the
+buffer to a UTF-8 string (or an empty string if it is not a buffer) and forwards payload, signature
+(from `options.webhookSignatureHeader`, default `stripe-signature`), and flattened headers to
+`payable.receiveWebhook(...)`.
+
+## Rate limiting
+
+The plugin registers `@fastify/rate-limit` before any routes, with these defaults:
+
+```ts
+await fastify.register(rateLimit, {
+  global: false,
+  max: 100,
+  timeWindow: '1 minute',
+  ...options.rateLimit,
+});
+```
+
+| Default | Value | Effect |
+| --- | --- | --- |
+| `global` | `false` | The limiter is opt-in per route, not applied to every route automatically. |
+| `max` | `100` | Maximum requests per `timeWindow` for routes that enable the limiter. |
+| `timeWindow` | `'1 minute'` | The rolling window the `max` count applies over. |
+
+Pass `options.rateLimit` (typed `RateLimitPluginOptions` from `@fastify/rate-limit`) to override or
+extend any of these; the supplied object is spread over the defaults, so it wins on conflicts.
+
+`@fastify/rate-limit` (`>=9`) is declared an **optional peer**. It is imported and registered
+unconditionally by the plugin, so it must be installed for the Fastify adapter to load - install it
+alongside `fastify` when using this adapter.
+
+## Error mapping
+
+`payableErrorReply` is set as Fastify's error handler and delegates to the shared mappers:
+
+```ts
+export function payableErrorReply(error, _request, reply): void {
+  reply.status(payableErrorStatus(error)).send(payableErrorBody(error));
+}
+```
+
+Status and body follow the same `STATUS_BY_CODE` table and `{ error, message }` shape documented in
+`docs/adapters/23-express.md`. `INVALID_WEBHOOK_SIGNATURE` maps to 400 and `VALIDATION_FAILED` to 422.
+
+## Authentication and catalog authorization
+
+As with Express, the plugin installs no authentication middleware. Checkout and legacy subscription
+routes are unprotected; webhook routes are protected only by provider signature verification. The
+caller must authenticate the request and verify ownership of the billable. Canonical subscription
+price migration routes also fail closed unless `resolveTenant` and `resolveAuthorization`
+return a matching tenant and allowed actor. See `docs/28-security.md`.
+
+Use the `authenticate` hook to establish the caller before a catalog route runs. For each catalog
+mutation, `resolveAuthorization` runs once and returns an `AuthorizationContext` from that trusted
+identity. Fastify forwards the object unchanged in `CatalogMutationOptions`; the core resource makes
+the final authorization decision. A denied catalog write returns `AUTHORIZATION_DENIED` before
+capability validation or provider calls.
+
+## Catalog idempotency
+
+Product and price mutation routes accept one `Idempotency-Key` header. Fastify validates it and
+forwards the value as `CatalogMutationOptions.idempotencyKey`. Invalid or duplicate header lines
+return `INVALID_IDEMPOTENCY_KEY` with HTTP 400.
+
+```bash
+curl -X POST https://example.test/products \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: catalog-product-pro-v1' \
+  -d '{"name":"Pro"}'
+```
+
+Reuse the value for the same tenant, provider, catalog operation, and body. The shared error mapper
+returns `IDEMPOTENCY_RECONCILIATION_REQUIRED` as HTTP 409 and
+`CATALOG_IDEMPOTENCY_STORAGE_REQUIRED` as HTTP 500. See
+[Idempotency](/features/14-idempotency/) for recovery guidance.
+
+## Registration example
+
+```ts
+import Fastify from 'fastify';
+import { createPayable } from '@akira-io/payable';
+import { createFastifyPayablePlugin } from '@akira-io/payable/fastify';
+
+const payable = createPayable({ providers: { stripe: stripeProvider }, storage });
+
+const app = Fastify();
+await app.register(createFastifyPayablePlugin(payable), { prefix: '/billing' });
+await app.ready();
+```
+
+With catalog authorization enabled:
+
+```ts
+await app.register(
+  createFastifyPayablePlugin(payable, {
+    authenticate: requireApiKey,
+    resolveAuthorization: (request) => ({
+      allowed: true,
+      actorId: request.user.id,
+      tenantId: request.user.tenantId,
+    }),
+  }),
+  { prefix: '/billing' },
+);
+```
+
+With a custom signature header:
+
+```ts
+await app.register(
+  createFastifyPayablePlugin(payable, { webhookSignatureHeader: 'paddle-signature' }),
+  { prefix: '/billing' },
+);
+```
+
+The `prefix` option is Fastify's standard register option; all routes above are mounted beneath it
+(for example `POST /billing/webhooks`).
+
+## Edge cases
+
+- Multiple registered providers with no `:provider` segment surface `WEBHOOK_PROVIDER_AMBIGUOUS`
+  (400) from the facade.
+- Webhook receipt requires a storage driver (`WEBHOOK_STORAGE_REQUIRED`, 500, when absent).
+- `GET /subscriptions/:name` returns 404 when the named subscription does not exist.

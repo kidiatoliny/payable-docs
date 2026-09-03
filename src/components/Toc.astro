@@ -15,8 +15,8 @@ const items = headings.filter((heading) => heading.depth === 2 || heading.depth 
 
 {
   items.length > 0 && (
-    <aside class="docs-toc sticky top-[52px] hidden h-[calc(100vh-52px)] w-60 shrink-0 overflow-y-auto py-8 pr-6 xl:block">
-      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <aside class="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-60 shrink-0 overflow-y-auto py-8 pr-6 xl:block">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">
         On this page
       </p>
       <ul class="flex flex-col gap-1 border-l border-border" data-toc>
@@ -26,7 +26,7 @@ const items = headings.filter((heading) => heading.depth === 2 || heading.depth 
               href={`#${heading.slug}`}
               data-toc-link={heading.slug}
               class:list={[
-                '-ml-px block border-l border-transparent py-1 text-sm text-muted-foreground transition-colors hover:text-foreground',
+                '-ml-px block border-l border-transparent py-1 text-sm text-muted-foreground transition-colors hover:text-foreground aria-[current=location]:border-primary aria-[current=location]:font-medium aria-[current=location]:text-foreground',
                 heading.depth === 2 ? 'pl-4' : 'pl-7',
               ]}
             >
@@ -40,32 +40,49 @@ const items = headings.filter((heading) => heading.depth === 2 || heading.depth 
 }
 
 <script>
-  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]'));
-  if (links.length > 0) {
-    const bySlug = new Map(links.map((link) => [link.dataset.tocLink, link]));
+  import { findActiveHeading } from '@/lib/toc';
+
+  let dispose: (() => void) | undefined;
+
+  function setupToc() {
+    dispose?.();
+    const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]'));
     const headings = links
       .map((link) => document.getElementById(link.dataset.tocLink ?? ''))
       .filter((element): element is HTMLElement => element !== null);
+    if (headings.length === 0) return;
 
-    const setActive = (slug: string | undefined) => {
-      for (const link of links) {
-        const active = link.dataset.tocLink === slug;
-        link.classList.toggle('text-foreground', active);
-        link.classList.toggle('border-primary', active);
-        link.classList.toggle('font-medium', active);
-      }
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const positions = headings.map((heading) => ({
+          id: heading.id,
+          top: heading.getBoundingClientRect().top + window.scrollY,
+        }));
+        const active = findActiveHeading(positions, window.scrollY, 88);
+        for (const link of links) {
+          if (link.dataset.tocLink === active) link.setAttribute('aria-current', 'location');
+          else link.removeAttribute('aria-current');
+        }
+      });
     };
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((entry) => entry.isIntersecting);
-        if (visible.length > 0) {
-          setActive(visible[0].target.id);
-        }
-      },
-      { rootMargin: '-80px 0px -70% 0px', threshold: 0 },
-    );
-
-    for (const heading of headings) observer.observe(heading);
+    update();
+    const settledUpdate = window.setTimeout(update, 100);
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    window.addEventListener('hashchange', update);
+    dispose = () => {
+      window.clearTimeout(settledUpdate);
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+      window.removeEventListener('hashchange', update);
+    };
   }
+
+  setupToc();
+  document.addEventListener('astro:page-load', setupToc);
+  document.addEventListener('astro:before-swap', () => dispose?.());
 </script>

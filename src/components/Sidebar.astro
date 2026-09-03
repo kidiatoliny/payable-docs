@@ -1,5 +1,5 @@
 ---
-import { cn } from '@/lib/utils';
+import { SidebarClient } from './Sidebar';
 import type { NavGroup } from '@/lib/nav';
 
 interface Props {
@@ -12,51 +12,7 @@ const { nav, currentSlug } = Astro.props;
 
 <aside
   data-docs-sidebar
-  class="docs-sidebar sticky top-[52px] hidden h-[calc(100vh-52px)] w-64 shrink-0 overflow-y-auto bg-sidebar px-4 py-6 lg:block"
+  class="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-72 shrink-0 border-r border-border bg-background lg:block"
 >
-  <nav class="flex flex-col gap-6">
-    {
-      nav.map((group) => (
-        <div>
-          <p class="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-foreground">
-            {group.label}
-          </p>
-          <ul class="flex flex-col gap-0.5">
-            {group.items.map((item) => (
-              <li>
-                <a
-                  href={item.href}
-                  class={cn(
-                    'block rounded-md px-2 py-1.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                    item.id === currentSlug &&
-                      'bg-sidebar-accent font-medium text-sidebar-accent-foreground',
-                  )}
-                >
-                  {item.title}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))
-    }
-  </nav>
+  <SidebarClient client:only="react" nav={nav} currentSlug={currentSlug} />
 </aside>
-
-<script>
-  const syncSidebarActive = () => {
-    const currentPath = window.location.pathname.replace(/\/$/, '');
-    const links = document.querySelectorAll<HTMLAnchorElement>('[data-docs-sidebar] a');
-
-    for (const link of links) {
-      const linkPath = new URL(link.href).pathname.replace(/\/$/, '');
-      const active = linkPath === currentPath;
-      link.classList.toggle('bg-sidebar-accent', active);
-      link.classList.toggle('font-medium', active);
-      link.classList.toggle('text-sidebar-accent-foreground', active);
-    }
-  };
-
-  syncSidebarActive();
-  document.addEventListener('astro:after-swap', syncSidebarActive);
-</script>
