@@ -12,7 +12,7 @@ const { nav, currentSlug } = Astro.props;
 
 <aside
   data-docs-sidebar
-  class="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-72 shrink-0 border-r border-border bg-background lg:block"
+  class="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-72 shrink-0 border-r border-border bg-background md:block"
 >
   <SidebarClient client:only="react" nav={nav} currentSlug={currentSlug} />
 </aside>

@@ -1,6 +1,6 @@
 ---
-import '@/styles/globals.css';
-import '@/styles/docs.css';
+import globalStylesheet from '@/styles/globals.css?url';
+import docsStylesheet from '@/styles/docs.css?url';
 import { ClientRouter } from 'astro:transitions';
 import { getCollection } from 'astro:content';
 import { buildNav, flattenNav } from '@/lib/nav';
@@ -61,13 +61,15 @@ const breadcrumbSchema = {
 <!doctype html>
 <html lang="en" transition:name="root" transition:animate="none">
   <head>
+    <link rel="stylesheet" href={globalStylesheet} transition:persist="global-styles" />
+    <link rel="stylesheet" href={docsStylesheet} transition:persist="docs-styles" />
     <SeoHead title={pageTitle} description={pageDescription} type="article" />
     <ClientRouter fallback="swap" />
     <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
     <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
   </head>
   <body class="docs-page min-h-screen bg-background text-foreground">
-    <Header nav={nav} currentSlug={slug} transition:persist="docs-header" />
+    <Header nav={nav} currentSlug={slug} />
     <div class="docs-shell mx-auto flex w-full max-w-[90rem] items-start">
       <Sidebar nav={nav} currentSlug={slug} />
       <main class="min-w-0 flex-1 px-5 py-12 lg:px-10">
