@@ -40,6 +40,7 @@ describe('MobileNav', () => {
     expect(screen.getByRole('button', { name: 'Trust My Travel' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('link', { name: 'Credentials' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByAltText('Akira')).toHaveAttribute('src', '/logo.svg');
+    expect(screen.getByText('payable')).toBeInTheDocument();
     expect(screen.queryByText('Documentation')).not.toBeInTheDocument();
   });
 

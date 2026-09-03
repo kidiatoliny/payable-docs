@@ -17,8 +17,8 @@ const { nav, currentSlug = '' } = Astro.props;
   <div class="app-bar-inner gap-2 sm:gap-3">
     <MobileNav client:load nav={nav} currentSlug={currentSlug} logoSrc={logo.src} />
 
-    <a href="/" class="app-bar-brand min-w-0 shrink">
-      <img src={logo.src} alt="Akira" width="27" height="27" class="app-bar-logo hidden md:block" />
+    <a href="/" class="app-bar-brand hidden min-w-0 shrink md:flex">
+      <img src={logo.src} alt="Akira" width="27" height="27" class="app-bar-logo" />
       <span class="truncate">payable</span>
     </a>
 

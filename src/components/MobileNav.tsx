@@ -36,7 +36,10 @@ function MobileSidebar({
       <Sidebar side="left">
         <SidebarHeader className="border-b border-sidebar-border px-5 py-4">
           <div className="flex items-center justify-between">
-            <img src={logoSrc} alt="Akira" width="27" height="27" className="app-bar-logo" />
+            <span className="app-bar-brand">
+              <img src={logoSrc} alt="Akira" width="27" height="27" className="app-bar-logo" />
+              <span>payable</span>
+            </span>
             <Button type="button" variant="ghost" size="icon" aria-label="Close navigation" onClick={() => setOpenMobile(false)}>
               <X className="size-5" />
             </Button>
