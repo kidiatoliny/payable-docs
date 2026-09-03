@@ -97,11 +97,11 @@ export function Search() {
     <>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         aria-label="Search documentation"
         title="Search"
         onClick={() => setOpen(true)}
-        className="w-9 shrink-0 justify-center px-0 text-muted-foreground md:w-64 md:justify-start md:px-3"
+        className="h-11 w-11 shrink-0 justify-center px-0 text-muted-foreground md:w-64 md:justify-start md:px-4"
       >
         <SearchIcon className="size-4 shrink-0" />
         <span className="hidden flex-1 text-left md:block">Search</span>

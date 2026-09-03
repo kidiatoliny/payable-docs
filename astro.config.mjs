@@ -29,6 +29,6 @@ export default defineConfig({
   vite: { plugins: [tailwindcss()] },
   markdown: {
     remarkPlugins: [remarkMermaidToPre],
-    shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' } },
+    shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' }, defaultColor: false },
   },
 });
