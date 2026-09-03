@@ -32,6 +32,7 @@ assert.match(header, /<ThemeToggle client:load \/>/);
 assert.match(header, /class="app-bar/);
 assert.match(header, /class="app-bar-inner/);
 assert.match(header, /class="app-bar-brand/);
+assert.match(styles, /\.app-bar\s*\{[^}]*z-index:\s*50[^}]*height:\s*52px[^}]*border-bottom:[^}]*background:[^}]*backdrop-filter:/s);
 assert.match(header, /href="\/02-architecture">Architecture</);
 assert.match(lifecycle, /class="step active"/);
 assert.match(lifecycle, />Configure</);

@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MobileNav } from './MobileNav';
 import type { NavGroup } from '@/lib/nav';
 
@@ -18,6 +18,14 @@ const nav: NavGroup[] = [{
   }],
 }];
 
+beforeEach(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 });
+});
+
+afterEach(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+});
+
 describe('MobileNav', () => {
   it('opens an accessible sheet with the shared hierarchy and active route', async () => {
     const user = userEvent.setup();
@@ -26,7 +34,9 @@ describe('MobileNav', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open navigation' }));
 
-    expect(screen.getByRole('dialog', { name: 'Documentation' })).toBeVisible();
+    const dialog = await screen.findByRole('dialog', { name: 'Sidebar' });
+    expect(dialog).toHaveAttribute('data-mobile', 'true');
+    expect(dialog).toHaveClass('rounded-none');
     expect(screen.getByRole('button', { name: 'Trust My Travel' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('link', { name: 'Credentials' })).toHaveAttribute('aria-current', 'page');
   });
@@ -41,7 +51,7 @@ describe('MobileNav', () => {
     await user.click(screen.getByRole('link', { name: 'Credentials' }));
     document.removeEventListener('click', preventNavigation);
 
-    expect(screen.queryByRole('dialog', { name: 'Documentation' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Sidebar' })).not.toBeInTheDocument();
   });
 
   it('closes with Escape and restores focus to the trigger', async () => {
@@ -52,7 +62,7 @@ describe('MobileNav', () => {
 
     await user.keyboard('{Escape}');
 
-    expect(screen.queryByRole('dialog', { name: 'Documentation' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Sidebar' })).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
 });
