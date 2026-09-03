@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Monitor, Moon, Sun } from 'lucide-react';
+import { Button } from '@akira-io/ui';
 
 type Mode = 'system' | 'light' | 'dark';
 const ORDER: Mode[] = ['system', 'light', 'dark'];
@@ -45,16 +46,18 @@ export function ThemeToggle() {
   const label = currentMode === 'system' ? 'System theme' : currentMode === 'light' ? 'Light theme' : 'Dark theme';
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       onClick={cycle}
       aria-label={label}
       title={label}
-      className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+      className="shrink-0 text-muted-foreground"
     >
       {currentMode === 'system' && <Monitor className="size-4" />}
       {currentMode === 'light' && <Sun className="size-4" />}
       {currentMode === 'dark' && <Moon className="size-4" />}
-    </button>
+    </Button>
   );
 }

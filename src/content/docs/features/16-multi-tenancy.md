@@ -100,6 +100,26 @@ every customer and payment. The isolation works as follows:
 - Payments are likewise scoped: `tenant-a` sees its 1000-cent charge, `tenant-b` its 2000-cent
   charge.
 
+### Catalog operations
+
+Canonical product and price identity is `(tenant, localId)`. Provider identities are separate
+bindings scoped by tenant, canonical resource, and registered provider account name. The same local
+product or price can therefore bind to multiple provider accounts without duplication.
+
+The legacy provider-first compatibility repositories identify products by
+`(tenant, provider, providerProductId)` and prices by `(tenant, provider, providerPriceId)`. `null` is
+the tenantless partition. Repository methods require an explicit tenant argument. Pass `null` when
+the catalog is tenantless.
+
+```ts
+const product = await storage.products.findByProviderId('stripe', 'prod_pro', 'tenant-a');
+const prices = await storage.prices.listByProduct(product.id, 'tenant-a');
+const tenantlessProduct = await storage.products.findByProviderId('stripe', 'prod_pro', null);
+```
+
+Catalog updates remain in their existing partition. The update contracts exclude `tenantId`, so an
+update cannot move a product or price between tenants.
+
 ### Webhooks
 
 For webhooks the tenant is resolved per request in `ReceiveWebhookAction`

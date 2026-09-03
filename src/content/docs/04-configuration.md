@@ -9,17 +9,14 @@ All configuration is passed to `createPayable(config)`, which calls `resolveConf
 produce a `ResolvedConfig`. This page documents every field of `PayableConfig`, the default
 `resolveConfig` applies, and what each field unlocks.
 
-## Validation and the provider requirement
+## Validation and the provider registry
 
 `resolveConfig` runs a `zod` schema over `tenant` and `idempotency` (it validates `tenant.enabled`
-is a boolean and `idempotency.strategy` is `'auto' | 'manual'`), then requires at least one
-provider:
+is a boolean and `idempotency.strategy` is `'auto' | 'manual'`). Payment providers are optional and
+resolve to an empty registry when omitted:
 
 ```ts
 const entries = Object.entries(config.providers ?? {});
-if (entries.length === 0) {
-  throw new TypeError('Payable requires at least one payment provider');
-}
 ```
 
 ## `PayableConfig` fields
@@ -36,15 +33,87 @@ if (entries.length === 0) {
   incoming webhook's provider, headers, and raw payload. See
   [features/16-multi-tenancy](/features/16-multi-tenancy/).
 
-### `providers: Record<string, PaymentProvider>`
+### `authorization?: AuthorizationConfig`
+
+- **Type.** `{ enabled: boolean }`.
+- **Required.** Optional.
+- **Default.** `undefined`; resolves to `authorizationEnabled: false`.
+- **Behavior.** When `enabled` is `true`, mutating actions enforce an `AuthorizationContext` through
+  `assertAuthorized` and the policies in `src/application/policies/`. The context is supplied per
+  call. When authorization is disabled, policy checks are skipped.
+
+### `providers?: Record<string, PaymentProvider>`
 
 - **Type.** Map of provider name to a `PaymentProvider` implementation.
-- **Required.** Yes. At least one entry, or `resolveConfig` throws `TypeError`.
-- **Default.** None.
+- **Required.** Optional.
+- **Default.** An empty map.
 - **Behavior.** Stored as a `Map` and wrapped by `ProviderRegistry`. When no provider name is
-  passed to `customer(...)`, the first registered provider is used. Webhook routing
-  with more than one provider registered requires `/webhooks/:provider`; otherwise `Payable` throws
-  `PayableError` code `WEBHOOK_PROVIDER_AMBIGUOUS`.
+  passed to a provider-bound operation, the first registered provider is used. When the registry is
+  empty, provider-bound operations throw `ProviderNotFoundError` with code `PROVIDER_NOT_FOUND`
+  before side effects. An explicit unknown provider name produces the same coded error. Payable
+  never installs or infers a mock provider. Webhook routing with more than one provider registered
+  requires `/webhooks/:provider`; otherwise `Payable` throws `PayableError` code
+  `WEBHOOK_PROVIDER_AMBIGUOUS`.
+
+### Local and provider-bound dependencies
+
+`LocalDependencies` contains storage, tenant context, clock, authorization state, idempotency,
+audit, events, and logging. Canonical collection reads use this contract and do not select a
+provider. `BillingDependencies` extends it with an explicitly resolved `provider` and
+`providerName` for operations that call an external payment API.
+
+Storage-only instances can list canonical customers, subscriptions, and payments, and retrieve a
+stored local subscription. Customer synchronization, catalogue provider operations, checkout,
+charges, refunds, billing portals, and payment webhooks remain provider-bound.
+
+### `accountingProviders?: Record<string, AccountingProvider>`
+
+- **Type.** Map of provider name to an `AccountingProvider` implementation.
+- **Required.** Optional.
+- **Default.** An empty map.
+- **Behavior.** Each entry is registered by name and exposed through `Payable.accountingProviders()`.
+
+### `identityProviders?: Record<string, IdentityProvider>`
+
+- **Type.** Map of provider name to an `IdentityProvider` implementation.
+- **Required.** Optional.
+- **Default.** An empty map.
+- **Behavior.** Each entry is registered by name and exposed through `Payable.identityProviders()`.
+
+### `issuingProviders?: Record<string, IssuingProvider>`
+
+- **Type.** Map of provider name to an `IssuingProvider` implementation.
+- **Required.** Optional.
+- **Default.** An empty map.
+- **Behavior.** Each entry is registered by name and exposed through `Payable.issuingProviders()`.
+
+### `marketplaceProviders?: Record<string, MarketplaceProvider>`
+
+- **Type.** Map of provider name to a `MarketplaceProvider` implementation.
+- **Required.** Optional.
+- **Default.** An empty map.
+- **Behavior.** Each entry is registered by name and exposed through `Payable.marketplaceProviders()`.
+
+### `taxProviders?: Record<string, TaxProvider>`
+
+- **Type.** Map of provider name to a `TaxProvider` implementation.
+- **Required.** Optional.
+- **Default.** An empty map.
+- **Behavior.** Each entry is registered by name and exposed through `Payable.taxProviders()`.
+
+### `terminalProviders?: Record<string, TerminalProvider>`
+
+- **Type.** Map of provider name to a `TerminalProvider` implementation.
+- **Required.** Optional.
+- **Default.** An empty map.
+- **Behavior.** Each entry is registered by name and exposed through `Payable.terminalProviders()`.
+
+### `treasuryProviders?: Record<string, TreasuryProvider>`
+
+- **Type.** Map of provider name to a `TreasuryProvider` implementation.
+- **Required.** Optional.
+- **Default.** An empty map.
+- **Behavior.** Each entry is registered by name and exposed through `Payable.treasuryProviders()`.
 
 ### `storage?: StorageDriver`
 
@@ -65,23 +134,7 @@ if (entries.length === 0) {
   via `queue.process(PROCESS_WEBHOOK_JOB, …)`.
 - **Behavior.** Drives async webhook processing. `SyncQueueDriver` runs the handler inline on
   `dispatch`, so webhook processing happens synchronously in-process. Supplying `BullMQQueueDriver`
-  moves processing onto a BullMQ queue/worker. See [persistence/21-queue](/persistence/21-queue/).
-
-### `cache?: CacheDriver`
-
-- **Type.** `CacheDriver` with `get`/`set`/`delete`/`has`.
-- **Required.** Optional.
-- **Default.** `undefined`.
-- **Behavior.** Available for caching needs; not substituted with a default. Bundled
-  implementations are `MemoryCacheDriver` and `RedisCacheDriver`.
-
-### `locks?: LockDriver`
-
-- **Type.** `LockDriver` with `acquire(key, ttlMs)` and `withLock(key, ttlMs, work)`.
-- **Required.** Optional.
-- **Default.** `undefined`.
-- **Behavior.** Provides distributed locking. Bundled implementations are `MemoryLockDriver` and
-  `RedisLockDriver`. See [features/15-reliability](/features/15-reliability/).
+  moves processing onto a BullMQ queue/worker. See [persistence/22-queue](/persistence/22-queue/).
 
 ### `clock?: Clock`
 
@@ -114,13 +167,13 @@ if (entries.length === 0) {
 - **Required.** Optional.
 - **Default.** `undefined`.
 - **Behavior.** Used to encrypt/decrypt sensitive stored values when supplied. The bundled
-  implementation is `NodeEncryptionDriver`. See [27-security](/27-security/).
+  implementation is `NodeEncryptionDriver`. See [28-security](/28-security/).
 
 ### `idempotency?: IdempotencyConfig`
 
-- **Type.** `{ enabled?: boolean; strategy?: 'auto' | 'manual'; resolver?: IdempotencyKeyResolver; store?: IdempotencyStore }`.
+- **Type.** `{ enabled?: boolean; strategy?: 'auto' | 'manual'; store?: IdempotencyStore }`.
 - **Required.** Optional.
-- **Default.** Resolved to `{ enabled: true, strategy: 'auto', resolver: undefined, store: undefined }`.
+- **Default.** Resolved to `{ enabled: true, strategy: 'auto', store: undefined }`.
 - **Behavior.** Controls idempotent execution of operations. Documented in detail below.
 
 ## `IdempotencyConfig`
@@ -128,12 +181,16 @@ if (entries.length === 0) {
 | Field | Type | Default (after resolve) | Meaning |
 | --- | --- | --- | --- |
 | `enabled` | `boolean?` | `true` | Whether idempotency is applied. On by default. |
-| `strategy` | `'auto' \| 'manual'?` | `'auto'` | `auto` derives keys via the resolver; `manual` expects caller-provided keys. |
-| `resolver` | `IdempotencyKeyResolver?` | `undefined` | Derives an idempotency key from `{ operation, provider?, resourceType?, resourceId? }`. The bundled default is `DefaultIdempotencyKeyResolver`. |
+| `strategy` | `'auto' \| 'manual'?` | `'auto'` | `auto` derives keys automatically; `manual` expects caller-provided keys. |
 | `store` | `IdempotencyStore?` | `undefined` | Persists idempotency records (`find`/`acquire`/`takeOver`/`put`/`markCompleted`/`markFailed`). The bundled Knex-backed store is `KnexIdempotencyRepository`. |
 
-`IdempotencyStrategy` is available as a type. The `IdempotencyStore` record status is one of
-`'processing' | 'completed' | 'failed' | 'expired'`. See [features/14-idempotency](/features/14-idempotency/).
+There is **no** `resolver` field on `IdempotencyConfig`. Key derivation is handled inside the
+operations (via `IdempotencyKey.forCharge`/`forRefund`/etc.); the exported `DefaultIdempotencyKeyResolver`
+and the `IdempotencyKeyResolver` contract belong to `ResolveIdempotencyKeyAction`. Operation authors
+can pass entity or global resolvers through `ExecuteIdempotentOperationAction`; the action sends the
+resolved string key to `IdempotencyService`. `IdempotencyStrategy` is available as a type. The
+`IdempotencyStore` record status is one of `'processing' | 'completed' | 'failed' | 'expired'`. See
+[features/14-idempotency](/features/14-idempotency/).
 
 ## `TenantConfig`
 
@@ -152,10 +209,16 @@ if (entries.length === 0) {
 | --- | --- | --- |
 | `tenantEnabled` | `config.tenant?.enabled` | `false` |
 | `tenantResolver` | `config.tenant?.resolver` | `undefined` |
-| `providers` | `new Map(entries)` | required (throws if empty) |
+| `authorizationEnabled` | `config.authorization?.enabled` | `false` |
+| `providers` | `new Map(entries)` | empty `Map` |
+| `accountingProviders` | `config.accountingProviders` | empty `Map` |
+| `identityProviders` | `config.identityProviders` | empty `Map` |
+| `issuingProviders` | `config.issuingProviders` | empty `Map` |
+| `marketplaceProviders` | `config.marketplaceProviders` | empty `Map` |
+| `taxProviders` | `config.taxProviders` | empty `Map` |
+| `terminalProviders` | `config.terminalProviders` | empty `Map` |
+| `treasuryProviders` | `config.treasuryProviders` | empty `Map` |
 | `storage` | `config.storage` | `undefined` |
-| `cache` | `config.cache` | `undefined` |
-| `locks` | `config.locks` | `undefined` |
 | `queue` | `config.queue` | `new SyncQueueDriver()` |
 | `clock` | `config.clock` | `new SystemClock()` |
 | `logger` | `config.logger` | `new NullLogger()` |
@@ -163,5 +226,11 @@ if (entries.length === 0) {
 | `encryption` | `config.encryption` | `undefined` |
 | `idempotency.enabled` | `config.idempotency?.enabled` | `true` |
 | `idempotency.strategy` | `config.idempotency?.strategy` | `'auto'` |
-| `idempotency.resolver` | `config.idempotency?.resolver` | `undefined` |
 | `idempotency.store` | `config.idempotency?.store` | `undefined` |
+
+## Cache and lock utilities
+
+`cache` and `locks` are not `PayableConfig` keys. `resolveConfig` rejects either key with
+`CONFIG_OPTION_UNSUPPORTED`. `CacheDriver`, `LockDriver`, `MemoryCacheDriver`, and
+`MemoryLockDriver` remain available for direct composition outside `createPayable`. Internal Redis
+scaffolds are not supported configuration and must not be deep-imported.

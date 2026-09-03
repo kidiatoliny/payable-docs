@@ -1,19 +1,21 @@
 # payable-docs
 
 Documentation site for [@akira-io/payable](https://github.com/akira-io/payable), built with
-[Astro](https://astro.build) + [Starlight](https://starlight.astro.build). The site mirrors the
-`docs/` tree of the payable repository.
+[Astro](https://astro.build), React islands, and [@akira-io/ui](https://ui.akira-io.com). The site
+mirrors the `docs/` tree of the payable repository.
 
 ## How the mirror works
 
 The Markdown under `_docs_src/` is a copy of `docs/` from the payable repo. `scripts/sync-docs.mjs`
-transforms it into Starlight content under `src/content/docs/`:
+transforms it into an Astro content collection under `src/content/docs/`:
 
 - adds frontmatter (`title` from the first `# ` heading, `sidebar.order` from the numeric prefix),
-- removes the original `#` heading (Starlight renders the title) and the manual prev/index/next footers,
+- removes the original `#` heading (the docs layout renders the title) and the manual prev/index/next footers,
 - rewrites internal `*.md` links to Starlight routes.
 
 The generated `src/content/docs/` is committed so the site builds without the payable repo present.
+Navigation and interactive primitives come from `@akira-io/ui`; the hierarchy and docs shell remain
+local to this site. Global design tokens are loaded from `@akira-io/ui/theme.css`.
 
 ## Refreshing the docs
 

@@ -3,10 +3,12 @@ import { Search as SearchIcon } from 'lucide-react';
 import {
   CommandDialog,
   CommandEmpty,
+  CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command';
+  Button,
+} from '@akira-io/ui';
 
 interface Result {
   url: string;
@@ -93,23 +95,45 @@ export function Search() {
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
         aria-label="Search documentation"
         title="Search"
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-muted/40 px-0 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground md:w-64 md:justify-start md:px-3"
+        className="w-9 shrink-0 justify-center px-0 text-muted-foreground md:w-64 md:justify-start md:px-3"
       >
         <SearchIcon className="size-4 shrink-0" />
         <span className="hidden flex-1 text-left md:block">Search</span>
         <kbd className="hidden rounded border border-border bg-background px-1.5 font-mono text-[11px] md:inline">
           ⌘K
         </kbd>
-      </button>
+      </Button>
 
-      <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandDialog title="Search documentation" open={open} onOpenChange={setOpen}>
         <CommandInput value={query} onValueChange={setQuery} placeholder="Search documentation..." />
-        <CommandList>
+        <CommandList className="min-h-72 p-2">
+          {!query.trim() && (
+            <CommandGroup heading="Popular topics">
+              <div className="px-2 pb-2 text-sm text-muted-foreground">
+                Find implementation guides, provider setup, API concepts, and production runbooks.
+              </div>
+              {[
+                ['Checkout', '/features/09-checkout'],
+                ['Subscriptions', '/features/10-subscriptions'],
+                ['Webhooks', '/features/13-webhooks'],
+                ['Payment providers', '/integrations/17-providers'],
+              ].map(([label, url]) => (
+                <CommandItem
+                  key={url}
+                  value={label}
+                  onSelect={() => { window.location.href = url; }}
+                >
+                  {label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
           {!ready && (
             <div className="px-3 py-6 text-center text-sm text-muted-foreground">
               Search index builds with the production site.

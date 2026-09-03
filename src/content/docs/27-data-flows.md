@@ -2,12 +2,12 @@
 title: "Data Flows"
 description: "This page traces the main runtime paths through the system, from HTTP entry to provider, storage, queue, and event bus. Each flow names the real components..."
 sidebar:
-  order: 26
+  order: 27
 ---
 
 This page traces the main runtime paths through the system, from HTTP entry to provider, storage,
 queue, and event bus. Each flow names the real components involved. For the conceptual webhook
-contract see `features/13-webhooks.md`; for queue behavior see `persistence/21-queue.md`.
+contract see `features/13-webhooks.md`; for queue behavior see `persistence/22-queue.md`.
 
 ## Layering recap
 
@@ -46,7 +46,8 @@ Concrete bindings:
 - Checkout: `registerCheckoutRoutes` -> `payable.customer(...).newSubscription(...).price(...)`
   builder -> `.checkout({ successUrl, cancelUrl })` -> `CheckoutSessionDTO`. Status 201.
 - Subscription management: `payable.customer(billable).subscription(name)[action]()` where action
-  is `cancel`, `cancelNow`, `resume`, or `swap(price)`. Status 200.
+  is `cancel`, `cancelNow`, `resume`, `previewChange(input)`, or `applyChange(input)`. Legacy
+  `swap` and `updateQuantity` calls require explicit policy options. Status 200.
 - Refund (Express only): `payable.refund({ paymentId, amount?, reason? })` ->
   `RefundPaymentAction` (`src/payable.ts`). Status 201.
 
@@ -73,12 +74,12 @@ sequenceDiagram
   Receive->>Verify: provider.verifyWebhook(...)
   Verify-->>Receive: VerifiedWebhook (or InvalidWebhookSignatureError)
   Receive->>Store: persist event (dedup by providerEventId)
-  alt duplicate
-    Store-->>Receive: { duplicate: true }
-    Receive-->>Adapter: 200 { duplicate: true }
-  else new
+  alt duplicate in terminal/processed state
+    Store-->>Receive: { duplicate: true, status }
+    Receive-->>Adapter: 200 { duplicate: true } (no enqueue)
+  else new, or duplicate still pending/failed
     Receive->>Queue: DispatchWebhookJobAction (enqueue webhook.process)
-    Receive-->>Adapter: 200 { webhookEventId, duplicate: false }
+    Receive-->>Adapter: 200 { webhookEventId, duplicate }
   end
 ```
 
@@ -86,8 +87,10 @@ Key points:
 
 - The adapter forwards the raw body string; the provider verifier validates the signature before
   anything is stored.
-- `StoreWebhookEventAction` deduplicates by `(provider, providerEventId, tenantId)`. A duplicate
-  short-circuits and returns without enqueuing.
+- `StoreWebhookEventAction` deduplicates by `(provider, providerEventId, tenantId)`. The
+  short-circuit fires only when `duplicate && !reprocessable` - a duplicate in a terminal/processed
+  state returns without enqueuing, while a duplicate still in `pending` or `failed` status is
+  re-dispatched (see `features/13-webhooks.md`).
 - Headers are redacted (`redactHeaders`) and, when an encryption driver is configured, sealed
   before persistence.
 - Webhook receipt requires a storage driver; otherwise the facade throws
@@ -131,17 +134,21 @@ sequenceDiagram
   participant Deliver as Delivery callback
   Pipeline->>Outbox: create({ eventType, payload, ... })
   loop publishPending(deliver, limit)
-    Service->>Outbox: claimPending(limit)
+    Service->>Outbox: claimPending(limit)  // stamps per-claim lockToken
     Service->>Deliver: deliver(event)
     alt success
-      Service->>Outbox: markPublished(id)
+      Service->>Outbox: markPublished(id, lockToken)
     else failure < maxAttempts
-      Service->>Outbox: markFailed(id, nextRetry)
+      Service->>Outbox: markFailed(id, nextRetry, lockToken)
     else failure >= maxAttempts
-      Service->>Outbox: markFailed(id, null)  // dead-lettered
+      Service->>Outbox: markFailed(id, null, lockToken)  // dead-lettered
     end
   end
 ```
+
+`markPublished` and `markFailed` both pass the per-claim `lockToken`. A publish or dead-letter only
+counts when affected-rows `> 0`; a `0` means the claim was lost (another worker reclaimed the row),
+so the current worker logs "claim lost" and stands down instead of double-marking.
 
 `OutboxService` (`src/infrastructure/outbox/outbox-service.ts`) claims pending rows, calls your
 `deliver` callback per event, and on failure schedules an exponential backoff retry

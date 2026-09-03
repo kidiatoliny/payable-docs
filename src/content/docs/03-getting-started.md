@@ -1,6 +1,6 @@
 ---
 title: "Getting Started"
-description: "Install only the peers for the features you use:"
+description: "The beta dist-tag selects the current prerelease. Keep the exact package version and lockfile change together, use frozen installs in CI, and review the..."
 sidebar:
   order: 3
 ---
@@ -14,8 +14,11 @@ sidebar:
 ## Install
 
 ```sh
-npm install @akira-io/payable   # or: pnpm add / bun add
+npm install --save-exact @akira-io/payable@beta   # or: pnpm add / bun add
 ```
+
+The `beta` dist-tag selects the current prerelease. Keep the exact package version and lockfile
+change together, use frozen installs in CI, and review the lockfile when adopting a newer beta.
 
 ## Optional peers
 
@@ -25,18 +28,35 @@ Install only the peers for the features you use:
 | --- | --- | --- |
 | Stripe provider | `npm i stripe` | `>=15` |
 | Paddle provider | `npm i @paddle/paddle-node-sdk` | `>=2` |
+| SISP provider | `npm i @akira-io/sisp` | `>=1.0.0-beta.1` |
 | Knex storage | `npm i knex` + a driver (`pg`, `better-sqlite3`, …) | `>=3` |
+| Prisma storage | `npm i @prisma/client` | `>=5` |
 | BullMQ queue | `npm i bullmq` | `>=5` |
 | Express adapter | `npm i express` | `>=4.18` |
 | Fastify adapter | `npm i fastify` | `>=4` |
 | NestJS adapter | `npm i @nestjs/common reflect-metadata` | `@nestjs/common >=10`, `reflect-metadata >=0.2` |
+| MCP adapter | `npm i @modelcontextprotocol/sdk` | `>=1.18` |
 
-All eight are marked optional, so package managers do not require them at install time.
+All optional peers are marked optional, so package managers do not require them at install time.
 
 ## Minimal example
 
-`createPayable` requires at least one payment provider; `resolveConfig` throws
-`TypeError('Payable requires at least one payment provider')` if `providers` is empty.
+`createPayable` can run without a payment provider. This storage-only mode supports canonical local
+reads while provider-bound operations remain unavailable.
+
+```ts
+import { createPayable, KnexStorageDriver } from '@akira-io/payable';
+
+const payable = createPayable({
+  storage: new KnexStorageDriver(db),
+});
+
+const subscriptions = await payable.subscriptions();
+const payments = await payable.payments();
+```
+
+Register a provider when the application needs checkout, charges, refunds, provider sync, billing
+portals, or provider webhooks:
 
 ```ts
 import { createPayable, Money, StripeProvider } from '@akira-io/payable';
@@ -55,8 +75,12 @@ Money.of(9900, 'USD').format(); // "$99.00"
 
 With only providers supplied, the resolved defaults are: `SyncQueueDriver` for the queue,
 `SystemClock` for the clock, `NullLogger` for the logger, `InMemoryEventBus` for events, and
-idempotency `enabled: true` with strategy `auto`. Storage, cache, locks, and encryption stay
-undefined, which disables features that require them (see [04-configuration](/04-configuration/)).
+idempotency `enabled: true` with strategy `auto`. Storage and encryption remain undefined, which
+disables features that require them (see [04-configuration](/04-configuration/)).
+
+When no provider is registered, a provider-bound operation throws `ProviderNotFoundError` with code
+`PROVIDER_NOT_FOUND` before it calls storage or an external API. Payable does not install or infer a
+mock provider.
 
 ## Full example with storage, queue, and events
 
@@ -117,7 +141,7 @@ const session = await payable
 // session is a CheckoutSessionDTO; redirect the user to its provider checkout URL.
 ```
 
-A `Billable` is `{ billableType: string; billableId: string; email: string; name?: string }`.
+A `Billable` is `{ billableType: string; billableId: string; email?: string; name?: string }`.
 `CustomerContext` also exposes `checkout()` (payment
 mode), `charge(...)`, `billingPortal(returnUrl)`, and `subscription(name)` for
 `swap`/`cancel`/`cancelNow`/`resume`/`updateQuantity`.

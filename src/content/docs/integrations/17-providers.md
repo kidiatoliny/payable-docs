@@ -7,7 +7,7 @@ sidebar:
 
 Every payment integration in `@akira-io/payable` is reduced to a single interface: `PaymentProvider`.
 The engine never talks to Stripe or Paddle directly. It talks to the contract, and concrete adapters
-translate domain DTOs into provider SDK calls and provider webhooks back into domain events. This keeps
+translate domain DTOs into provider SDK or API calls and provider webhooks back into domain events. This keeps
 the application and domain layers provider-agnostic and makes a new integration a matter of implementing
 one interface.
 
@@ -35,21 +35,37 @@ provider: it implements the slim core plus the one optional interface that fits 
 
 ### Optional capability interfaces
 
-Each interface lives in `src/domain/contracts/payment-provider.contract.ts` and ships with a structural
-`isXCapable` guard (duck-typing on method presence). Calling code narrows first, then either calls the
-method or throws `ProviderCapabilityNotSupportedError`.
+Catalog capability interfaces are declared in `src/domain/contracts/catalog-provider.contract.ts`.
+`src/domain/contracts/payment-provider.contract.ts` retains their type and guard re-exports for
+compatibility. The remaining optional interfaces are declared in
+`src/domain/contracts/payment-provider.contract.ts`. Each interface ships with a structural `isXCapable`
+guard (duck-typing on method presence). Calling code narrows first, then either calls the method or throws
+`ProviderCapabilityNotSupportedError`.
 
 | Interface | Method(s) | Guard |
 | --- | --- | --- |
 | `CustomerCapable` | `createCustomer(input, ctx)`, `updateCustomer(input, ctx)` | `isCustomerCapable(provider)` |
 | `CatalogCapable` | `createProduct`, `updateProduct`, `createPrice` | `isCatalogCapable(provider)` |
+| `CatalogProductCreateCapable` | `createProduct` | `isCatalogProductCreateCapable(provider)` |
+| `CatalogProductUpdateCapable` | `updateProduct` | `isCatalogProductUpdateCapable(provider)` |
+| `CatalogPriceCreateCapable` | `createPrice` | `isCatalogPriceCreateCapable(provider)` |
+| `CatalogPriceUpdateCapable` | `updatePrice` | `isCatalogPriceUpdateCapable(provider)` |
+| `CatalogReadCapable` | `retrieveProduct`, `listProducts`, `retrievePrice`, `listPrices` | `isCatalogReadCapable(provider)` |
+| `CatalogLifecycleCapable` | `setProductActive`, `setPriceActive` | `isCatalogLifecycleCapable(provider)` |
+| `PriceLookupKeyCapable` | keyed `createPrice`, keyed `listPrices`, `transferPriceLookupKey` | `isPriceLookupKeyCapable(provider)` |
 | `SubscriptionManagementCapable` | `updateSubscription`, `cancelSubscription`, `resumeSubscription` | `isSubscriptionManagementCapable(provider)` |
 | `WebhookCapable` | `verifyWebhook(input)`, `reconcileSubscription(verified)` | `isWebhookCapable(provider)` |
+| `PaymentWebhookCapable` | `reconcilePayment(verified)` | `isPaymentWebhookCapable(provider)` |
 | `BillingPortalCapable` | `billingPortal(input, ctx)` | `isBillingPortalCapable(provider)` |
 | `RedirectCallbackCapable` | `verifyCallback(payload)`, `handleRedirectCallback(payload)` | `isRedirectCallbackCapable(provider)` |
 | `ChargeCapable` | `charge(input, ctx)` | `isChargeCapable(provider)` |
 | `DirectSubscriptionCapable` | `createSubscription(input, ctx)` | `isDirectSubscriptionCapable(provider)` |
 | `InvoiceCapable` | `listInvoices(input)`, `downloadInvoicePdf(id)` | `isInvoiceCapable(provider)` |
+| `PaymentMethodCapable` | `listPaymentMethods(input)`, `deletePaymentMethod(input, ctx)` | `isPaymentMethodCapable(provider)` |
+| `PaymentMethodSetupCapable` | `createPaymentMethodSetup(input, ctx)`, `retrievePaymentMethodSetup(id)`, `cancelPaymentMethodSetup(id, ctx)` | `isPaymentMethodSetupCapable(provider)` |
+| `DisputeCapable` | `listDisputes(input)`, `retrieveDispute(id)`, `acceptDispute(id, ctx)` | `isDisputeCapable(provider)` |
+| `PayoutCapable` | `listPayouts(input)`, `retrievePayout(id)` | `isPayoutCapable(provider)` |
+| `ProviderWebhookEndpointManagementCapable` | provider webhook endpoint CRUD with bounded listing | `isProviderWebhookEndpointManagementCapable(provider)` |
 
 Notes on the non-obvious members:
 
@@ -58,14 +74,20 @@ Notes on the non-obvious members:
   and the event `data`. A failed signature throws `InvalidWebhookSignatureError`.
 - `reconcileSubscription` is synchronous and pure. Given an already-verified webhook it returns a
   `SubscriptionDTO` when the normalized type starts with `subscription.`, otherwise `null`.
+- `PaymentWebhookCapable` is separate from `WebhookCapable`. It lets hosted-checkout providers map an
+  already-verified payment webhook to `{ providerPaymentId, status }` without forcing every
+  webhook-capable provider to implement payment reconciliation.
+- `PaymentMethodSetupCapable` manages the setup lifecycle independently from charging. Its normalized
+  result can expose a client secret, a hosted checkout URL, or the resulting provider payment method
+  ID without exposing vendor SDK types.
 - `RedirectCallbackCapable` models a synchronous browser-POST callback (SISP), not an asynchronous
   signed webhook. `handleRedirectCallback` returns a normalized `{ providerPaymentId, status }` the
   engine uses to reconcile a local payment. See [SISP](/integrations/20-sisp/).
 
 ### Narrowing helper
 
-For capabilities that are also declared in the `ProviderCapabilities` set (customers, catalog,
-subscriptions, billingPortal), the engine uses `assertCapableProvider`
+For capabilities that are also declared in the `ProviderCapabilities` set and backed by optional
+interfaces, the engine uses `assertCapableProvider`
 (`src/application/services/provider-capabilities/assert-provider-capability.ts`), which checks the set
 **and** narrows the type in one step:
 
@@ -74,22 +96,65 @@ assertCapableProvider(provider, 'customers', isCustomerCapable);
 // provider is now PaymentProvider & CustomerCapable
 ```
 
-Capabilities with no string in the set (charge, redirect callback) are gated by the guard alone.
+Some provider features are represented both ways: a known capability string for honest feature
+advertising and an optional interface for the callable methods. Examples include `customers`
+(`CustomerCapable`), `invoicePdf` (`InvoiceCapable`), `charges` (`ChargeCapable`), and `webhooks`
+(`WebhookCapable`). Catalog creation, reads, and lifecycle changes use `catalog`, `catalogRead`, and
+`catalogLifecycle` with their matching structural guards. Redirect callbacks remain guard-only because
+they model a provider-specific browser callback flow, not an asynchronous provider webhook.
+
+`PriceLookupKeyCapable` is narrower than the ordinary catalog capabilities. It supports a create
+with `lookupKey`, create-time `transferLookupKey: true`, list filtering with `lookupKeys`, and explicit
+`prices().transferLookupKey({ providerPriceId, lookupKey }, options)`. The engine gates those calls
+with `priceLookupKeys` and `isPriceLookupKeyCapable`; normal catalog operations do not require it.
 
 ### Capability matrix
 
-| Capability | Stripe | Paddle | SISP |
-| --- | --- | --- | --- |
-| `checkout` | yes | yes | yes (redirect form) |
-| `refunds` | yes | yes | yes |
-| `customers` | yes | yes | no (local-only customers) |
-| `catalog` | yes | yes | no |
-| `subscriptions` | yes | yes | no |
-| `billingPortal` | yes | yes | no |
-| webhooks (`WebhookCapable`) | yes | yes | no (uses redirect callback) |
-| `RedirectCallbackCapable` | no | no | yes |
-| `ChargeCapable` | yes | no | no |
-| `InvoiceCapable` | yes | no | no |
+The matrix describes support implemented by each built-in Payable adapter, not every feature offered
+by the external provider. A `no` cell only means that this adapter does not expose the operation.
+
+| Capability | Stripe | Paddle | SISP | Revolut |
+| --- | --- | --- | --- | --- |
+| `checkout` | yes | yes | yes (redirect form) | yes (amount order, subscription setup order) |
+| `refunds` | yes | yes | no | yes (amount required) |
+| `customers` | yes | yes | no (local-only customers) | yes |
+| `catalog` | yes | yes | no | no |
+| `catalogRead` | yes | yes | no | no |
+| `catalogLifecycle` | yes | yes | no | no |
+| `catalogIdempotency` | yes | no | no | no |
+| `catalogProductCreate` | yes | yes | no | no |
+| `catalogProductUpdate` | yes | yes | no | no |
+| `catalogProductArchive` | yes | yes | no | no |
+| `catalogProductReactivate` | yes | yes | no | no |
+| `catalogPriceCreate` | yes | yes | no | no |
+| `catalogPriceUpdate` | yes | yes | no | no |
+| `catalogPriceArchive` | yes | yes | no | no |
+| `catalogPriceReactivate` | yes | yes | no | no |
+| `priceLookupKeys` | yes | no | no | no |
+| `subscriptions` | yes | yes | no | yes (limited) |
+| `trials` | yes | no | no | no |
+| `coupons` | yes | no | no | no |
+| `billingPortal` | yes | yes | no | no |
+| `webhooks` (`WebhookCapable`) | yes | yes | no (uses redirect callback) | yes |
+| `PaymentWebhookCapable` | yes | no | no | yes |
+| `RedirectCallbackCapable` | no | no | yes | no |
+| `charges` (`ChargeCapable`) | yes | no | no | no |
+| `invoicePdf` (`InvoiceCapable`) | yes | no | no | no |
+| `paymentMethods` (`PaymentMethodCapable`) | yes | no | no | yes |
+| `paymentMethodSetup` (`PaymentMethodSetupCapable`) | yes | no | no | yes |
+| `disputes` (`DisputeCapable`) | yes | no | no | yes (production only) |
+| `payouts` (`PayoutCapable`) | yes | no | no | yes |
+| `webhookEndpointManagement` | yes | no | no | yes |
+
+Canonical catalogue synchronization uses the granular rows rather than inferring one operation from
+another. `catalogRead` supports reconciliation and `catalogIdempotency` enables safe automatic retry.
+
+See [Catalog Lifecycle](/examples/45-catalog-lifecycle/) for explicit synchronization, retry,
+and reconciliation examples. Provider API background: [Stripe Products](https://docs.stripe.com/api/products),
+[Stripe Prices](https://docs.stripe.com/api/prices), [Stripe idempotency](https://docs.stripe.com/api/idempotent_requests),
+[Stripe webhooks](https://docs.stripe.com/webhooks), [Paddle Products](https://developer.paddle.com/api-reference/products/),
+[Paddle Prices](https://developer.paddle.com/api-reference/prices/), and
+[Paddle notifications](https://developer.paddle.com/webhooks/overview).
 
 ## The capabilities system
 
@@ -99,6 +164,7 @@ A provider declares the feature set it supports through `capabilities()`, which 
 ```ts
 export type ProviderCapability =
   | 'checkout'
+  | 'charges'
   | 'subscriptions'
   | 'trials'
   | 'refunds'
@@ -106,8 +172,17 @@ export type ProviderCapability =
   | 'billingPortal'
   | 'meteredBilling'
   | 'invoicePdf'
+  | 'webhooks'
   | 'customers'
-  | 'catalog';
+  | 'paymentMethods'
+  | 'paymentMethodSetup'
+  | 'disputes'
+  | 'payouts'
+  | 'webhookEndpointManagement'
+  | 'catalog'
+  | 'catalogRead'
+  | 'catalogLifecycle'
+  | 'priceLookupKeys';
 
 export type ProviderCapabilityValue = ProviderCapability | (string & {});
 
@@ -119,6 +194,81 @@ unsupported (opt-in by presence). `ProviderCapabilityValue` is the union of know
 open `string` arm, so a provider may declare custom capabilities the core does not know about (for
 example `'x-acme-dunning'`) while the known names keep autocomplete. Adding a new core capability is a
 new union member, not a new required field, so it does not break existing custom providers.
+
+### Subscription operation capabilities
+
+The coarse `subscriptions` capability says that a provider participates in subscription workflows.
+It does not imply that every lifecycle operation or policy is available. Providers can implement the
+optional `SubscriptionOperationCapabilitiesProvider` contract to publish a serializable descriptor:
+
+```ts
+const operations = payable
+  .providers()
+  .subscriptionOperationCapabilities('stripe');
+
+operations.create.direct;
+operations.itemIdentity;
+operations.changePrice.effectiveTimings;
+operations.cancel.atPeriodEnd;
+```
+
+The descriptor separates creation, price changes, quantity changes, cancellation, pause, and resume.
+Change capabilities list supported effective timings, proration policies, and payment-failure
+policies. Pause and resume capabilities list scheduling and billing-cycle behavior. The returned
+snapshot and its policy arrays are immutable.
+
+`itemIdentity` is `stable` for Stripe, `price` for Paddle, and `none` for providers that do not expose
+addressable subscription items. This lets consumers require an explicit local item and avoid assuming
+that the first provider item is primary.
+
+| Subscription operation | Stripe | Paddle | SISP | Revolut |
+| --- | --- | --- | --- | --- |
+| Hosted checkout creation | yes | yes | no | yes |
+| Direct creation | yes | no | no | yes |
+| Price change timing | immediate | immediate | no | next renewal |
+| Price change proration | immediate, next invoice, none | immediate, next invoice, full charge immediately, full charge at next renewal, none | no | none |
+| Price change payment failure | prevent change, apply change | prevent change, apply change | no | apply change |
+| Quantity change | immediate | immediate | no | no |
+| Preview change | yes | yes | no | yes |
+| Cancel immediately | yes | yes | no | yes |
+| Cancel at period end | yes | yes | no | no |
+| Pause subscription timing | no | immediate, next renewal | no | no |
+| Pause scheduled resume | no | yes | no | no |
+| Pause resume billing policy | no | new billing period, existing billing period | no | no |
+| Pause payment collection | keep as draft, mark uncollectible, void | no | no | no |
+| Payment collection scheduled resume | yes | no | no | no |
+| Resume pending cancellation | yes | no | no | no |
+| Resume paused subscription timing | no | immediate, scheduled | no | no |
+| Resume paused subscription billing | no | new billing period, existing billing period | no | no |
+| Resume payment collection | yes | no | no | no |
+| Cancel scheduled change | no | yes | no | no |
+
+This matrix describes the current Payable adapters, not every feature offered by the external
+providers. Lifecycle pause and payment-collection pause are deliberately separate operations. Stripe
+payment-collection pause leaves the subscription lifecycle status unchanged; Paddle lifecycle pause
+changes the subscription state. SISP and Revolut advertise neither operation.
+
+Stripe and Paddle return provider-calculated monetary previews. Revolut has no monetary change-plan
+preview endpoint, so Payable returns a structural next-renewal preview with unknown amounts as
+`null`. Apply always reuses the exact stored preview input and provider calculation timestamp.
+
+Built-in providers publish explicit descriptors. A custom provider can add the optional method
+without changing its existing `capabilities()` implementation. For legacy providers that do not
+implement the method, registry discovery returns a conservative creation-only descriptor inferred
+from the coarse capability and direct-creation interface. Existing legacy operations are not blocked
+by granular assertions, which preserves compatibility while integrations migrate to explicit
+descriptors.
+
+The coarse `subscriptions` value remains supported for family-level discovery and existing guards,
+but it is deprecated as a source for operation-level decisions. Migration is additive: implement
+`subscriptionOperationCapabilities()`, move user-interface and workflow checks to the descriptor,
+then retain `subscriptions` while supporting current Payable releases. No removal release is
+scheduled.
+
+Before a built-in provider call, Payable asserts the requested operation and throws
+`ProviderCapabilityNotSupportedError` with a stable capability name such as
+`subscriptions.change-quantity` or `subscriptions.cancel.at-period-end`. The assertion runs before
+customer synchronization or other provider side effects.
 
 This is distinct from the optional interfaces above. The interfaces answer "does this method exist?";
 `ProviderCapabilities` answers "does the provider claim to support this feature?". The engine guards a
@@ -142,18 +292,59 @@ When the capability is absent from the set, it throws `ProviderCapabilityNotSupp
 `Provider '<name>' does not support capability: <capability>`. The error context carries
 `{ provider, capability }`.
 
+## Tax providers
+
+Tax calculation and transaction recording use the independent `TaxProvider` family. Configure
+adapters through `taxProviders` and retrieve them with `payable.taxProviders()`. The registry is empty
+when omitted and throws `TaxProviderNotFoundError` for unknown names.
+
+`TaxCalculationCapable` calculates and retrieves normalized tax calculations.
+`TaxTransactionCapable` commits and reverses tax transactions. Tax providers are not payment
+providers, and no tax adapter is registered automatically.
+
+## Issuing providers
+
+Card issuing uses the independent `IssuingProvider` family and `issuingProviders` configuration.
+Capabilities cover cardholders, cards, authorizations, and issuing transactions independently. Every
+operation requires its matching structural guard, and no built-in adapter is registered by default.
+
+Normalized card DTOs expose only non-sensitive display metadata. Full card numbers, CVV, PIN, track
+data, and provider secrets are excluded from the contracts.
+
+## Marketplace providers
+
+Seller account coordination uses `MarketplaceProvider` and the optional `marketplaceProviders`
+configuration. Accounts, onboarding, transfers, and payouts are separate capabilities with complete
+runtime guards. Payment acceptance remains the responsibility of payment providers.
+
 - Purpose: fail fast and explicitly before reaching the provider API for an unsupported operation.
 - Edge case: a provider may also throw `ProviderCapabilityNotSupportedError` from inside a method for a
   partial limitation. Paddle does this for partial refunds (see the Paddle integration page).
 
-`customers` and `catalog` gate the resource managers, not all providers expose customer or catalog
-write APIs:
+Known capabilities gate their matching resource operations before Payable calls a provider:
 
 - **`customers`** guards `payable.customers().create(...)` and `.update(...)`. A read with `.get(...)`
-  comes from local storage and is not gated.
-- **`catalog`** guards `payable.products().create(...) / .update(...)` and `payable.prices().create(...)`.
+  comes from local storage and is not gated. Provider-backed customer sync also requires the
+  `customers` capability before calling `createCustomer` or `updateCustomer`. If a stored customer has
+  a provider customer id and the provider declares `customers`, update requires the full
+  `CustomerCapable` interface instead of silently falling back to local-only changes.
+- **`catalog`** guards `payable.providerCatalog().products.create(...)`, `payable.providerCatalog().products.update(...)`, and
+  `payable.providerCatalog().prices.create(...)`.
+- **`catalogRead`** guards product and price `retrieve(...)` and `list(...)` operations.
+- **`catalogLifecycle`** guards product and price `activate(...)` and `archive(...)` operations.
+- **`priceLookupKeys`** guards price creates carrying `lookupKey` or `transferLookupKey: true`, price
+  lists carrying `lookupKeys`, and `prices().transferLookupKey(...)`. Providers without an official
+  equivalent do not advertise it.
+- **`subscriptions`** guards subscription management. Direct subscription creation also requires this
+  declared capability before storage or provider calls, but a provider may still omit
+  `DirectSubscriptionCapable` and support subscription creation only through checkout.
+- **`charges`** guards direct charge creation before the provider is called.
+- **`invoicePdf`** guards invoice listing and PDF download before invoice provider methods are used.
+- **`webhooks`** guards webhook receipt before signature verification is delegated to the provider.
+  Replay and subscription reconciliation also treat providers without this declared capability as
+  stored-event-only, even if a provider object happens to expose webhook-shaped methods.
 
-A provider whose set omits either rejects the corresponding manager call with
+A provider whose set omits a required capability rejects the corresponding operation with
 `PROVIDER_CAPABILITY_NOT_SUPPORTED` (HTTP 422) before any network call.
 
 ## The provider registry
@@ -166,6 +357,7 @@ A provider whose set omits either rejects the corresponding manager call with
 | `get(name)` | Returns the provider, or throws `ProviderNotFoundError` (`PROVIDER_NOT_FOUND`) when absent. |
 | `has(name)` | `true` when a provider is registered under `name`. |
 | `names()` | Registered provider names, in insertion order. |
+| `subscriptionOperationCapabilities(name)` | Returns an immutable granular subscription descriptor or a conservative legacy fallback. |
 
 The registry is built from the resolved config and exposed via `payable.providers()`.
 
@@ -195,6 +387,7 @@ flowchart TD
   Stripe --> StripeAPI[Stripe SDK]
   Paddle --> PaddleAPI[Paddle SDK]
   Sisp --> SispPkg["@akira-io/sisp (node-sisp)"]
+  Revolut --> RevolutAPI[Revolut Merchant API]
 ```
 
 ## Implementing a custom provider
@@ -214,7 +407,7 @@ export class AcmeProvider implements PaymentProvider, CustomerCapable, ChargeCap
   readonly name = 'acme';
 
   capabilities() {
-    return new Set(['checkout', 'refunds', 'customers', 'x-acme-dunning']);
+    return new Set(['checkout', 'charges', 'refunds', 'customers', 'x-acme-dunning']);
   }
 
   async createCheckoutSession(input, ctx) { /* ...map to Acme hosted checkout... */ }
@@ -245,7 +438,28 @@ Constraints to honour:
 - `verifyWebhook` (if `WebhookCapable`) must throw `InvalidWebhookSignatureError` (not a generic error)
   on a bad signature so the webhook pipeline can reject it cleanly.
 - `reconcileSubscription` should return `null` for non-subscription events.
+- `PaymentWebhookCapable.reconcilePayment` should return `null` for non-payment events and should only
+  return statuses representable by the domain `PaymentStatus` value object.
 - Keep `capabilities()` honest. The engine trusts it to gate features; lying produces failures at the
   provider API instead of a clean `ProviderCapabilityNotSupportedError`.
 
 Register it like any built-in provider through the engine config (`{ providers: { acme: new AcmeProvider(...) } }`).
+
+Accounting integrations use the independent `accountingProviders` config and
+`payable.accountingProviders()` registry. Their tax-rate metadata is for bookkeeping only and remains
+separate from tax calculation providers. Categories, tax rates, labels, expense reads, full expense
+management, and ledger access are advertised independently.
+
+`AccountingExpenseReadCapable` is the normalized list and retrieve surface and uses the `expenseReads`
+capability. `AccountingExpenseCapable` extends it with updates and requires `expenses`. A provider that
+can only read expenses must not advertise the full capability. Applications should narrow with
+`isAccountingExpenseReadCapable` when they do not need mutation.
+
+Identity integrations use the independent `identityProviders` config and
+`payable.identityProviders()` registry. Applications remain responsible for consent, retention,
+access control, and legal compliance; provider adapters must not return raw identity evidence through
+the normalized contracts.
+
+Terminal integrations use the independent `terminalProviders` config and
+`payable.terminalProviders()` registry. They discover devices and coordinate server-driven terminal
+actions without extending `PaymentProvider` or adding device SDK dependencies to the core package.

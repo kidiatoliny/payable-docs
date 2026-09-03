@@ -2,7 +2,7 @@
 title: "Operations"
 description: "Building, releasing, publishing, and recovery for @akira-io/payable."
 sidebar:
-  order: 29
+  order: 30
 ---
 
 Building, releasing, publishing, and recovery for `@akira-io/payable`.
@@ -10,7 +10,7 @@ Building, releasing, publishing, and recovery for `@akira-io/payable`.
 ## Build
 
 The build runs through tsup, emitting both ESM and CJS plus type declarations, targeting Node 20,
-into `dist/`. There are four entry points, one per public subpath:
+into `dist/`. There are nine build entries:
 
 | Entry | Source |
 | --- | --- |
@@ -18,30 +18,44 @@ into `dist/`. There are four entry points, one per public subpath:
 | `express/index` | `src/presentation/express/index.ts` |
 | `fastify/index` | `src/presentation/fastify/index.ts` |
 | `nest/index` | `src/presentation/nest/index.ts` |
+| `mcp/index` | `src/presentation/mcp/index.ts` |
+| `mcp/bin` | `src/presentation/mcp/bin.ts` |
+| `sisp/index` | `src/presentation/sisp/index.ts` |
+| `prisma/index` | `src/prisma/index.ts` |
+| `prisma/bin` | `src/prisma/bin.ts` |
+
+`mcp/bin` and `prisma/bin` are CLI entries (wired through the `bin` field to `./dist/mcp/bin.cjs` and
+`./dist/prisma/bin.cjs`); they have no type-declaration entry and no `exports` subpath. The other
+seven entries each back a public subpath.
 
 `dinero.js`, a runtime dependency, is bundled into the output via `noExternal`; sourcemaps are
 emitted and `dist/` is cleaned before each build. Run with `bun run build` (alias for `tsup`).
 
-The `exports` map mirrors these entries, so consumers import `@akira-io/payable`,
-`@akira-io/payable/express`, `@akira-io/payable/fastify`, or `@akira-io/payable/nest`, each
-resolving to the matching `types`/`import`/`require` target under `dist/`.
+The `exports` map mirrors the seven subpath entries, so consumers import `@akira-io/payable`,
+`@akira-io/payable/express`, `@akira-io/payable/fastify`, `@akira-io/payable/nest`,
+`@akira-io/payable/mcp`, `@akira-io/payable/sisp`, or `@akira-io/payable/prisma`, each resolving to
+the matching `types`/`import`/`require` target under `dist/`. Two bins are exposed: `payable-mcp` and
+`payable-prisma`.
 
 ## Bundle guarantee check
 
-Run `bun run verify:bundle` to assert that no optional peer (`stripe`, `@paddle/paddle-node-sdk`,
-`knex`, `bullmq`, `express`, `fastify`, `@nestjs/common`, `reflect-metadata`) is statically
-imported into `dist/index.js` or `dist/index.cjs`. A leak fails the build. This keeps the core
-entry free of provider and framework code; those land only in the subpath bundles or are loaded
-dynamically.
+Run `bun run verify:bundle` to assert that no optional peer is statically imported into
+`dist/index.js` or `dist/index.cjs`. The peer set is read dynamically from `package.json`
+`peerDependencies`, so the check stays in sync; at the time of writing it covers `stripe`,
+`@paddle/paddle-node-sdk`, `knex`, `bullmq`, `express`, `fastify`, `@nestjs/common`, `@nestjs/core`,
+`reflect-metadata`, `@modelcontextprotocol/sdk`, `@fastify/rate-limit`, `@prisma/client`, and
+`@akira-io/sisp`. A leak fails the build. This keeps the core entry free of provider and framework
+code; those land only in the subpath bundles or are loaded dynamically.
 
 ## Continuous integration
 
 CI runs on pushes to `main` and on pull requests. Two jobs:
 
 - `test` (Bun): install with `bun install --frozen-lockfile`, then `lint`, `typecheck`,
-  `test:coverage`, `build`, and `verify:bundle`.
-- `node` (matrix): Node 20 and Node 22, install with `npm install`, then `npx vitest run`. This
-  confirms the test suite passes on every supported Node version.
+  `test:coverage`, `build`, `verify:bundle`, and `verify:exports`.
+- `node` (matrix): Node 20 and Node 22, install with `bun install --frozen-lockfile`, then
+  `npx tsc --noEmit`, `npx vitest run`, `bun run build`, and `node scripts/check-exports.mjs`. This
+  confirms typecheck, tests, build, and dist imports pass on every supported Node version.
 
 ## Release
 
@@ -65,8 +79,8 @@ Performance Improvements, `refactor` -> Code Refactoring; `docs`, `style`, `test
 
 - `prepublishOnly` runs `bun run build`, so `npm publish` always ships a fresh `dist/`.
 - Only the built output is published; source and tests are excluded.
-- The `exports` map defines the public surface (core plus the three adapter subpaths). Anything not
-  in `exports` is not importable by consumers.
+- The `exports` map defines the public surface (core plus the `express`, `fastify`, `nest`, `mcp`,
+  `sisp`, and `prisma` subpaths). Anything not in `exports` is not importable by consumers.
 - The package is dual-licensed `(MIT OR Apache-2.0)`, ships as an ES module, and is marked
   side-effect free.
 
