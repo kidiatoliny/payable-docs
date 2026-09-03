@@ -97,17 +97,14 @@ export function Search() {
     <>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
+        size="icon"
         aria-label="Search documentation"
         title="Search"
         onClick={() => setOpen(true)}
-        className="w-9 shrink-0 justify-center px-0 text-muted-foreground md:w-64 md:justify-start md:px-3"
+        className="shrink-0 text-muted-foreground"
       >
-        <SearchIcon className="size-4 shrink-0" />
-        <span className="hidden flex-1 text-left md:block">Search</span>
-        <kbd className="hidden rounded border border-border bg-background px-1.5 font-mono text-[11px] md:inline">
-          ⌘K
-        </kbd>
+        <SearchIcon className="size-4" />
       </Button>
 
       <CommandDialog title="Search documentation" open={open} onOpenChange={setOpen}>

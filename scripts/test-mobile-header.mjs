@@ -10,6 +10,5 @@ assert.doesNotMatch(header, />\s*Docs\s*<\/span>/);
 assert.match(header, /github\.com\/akira-io\/payable/);
 assert.match(header, /<span class="hidden sm:inline">GitHub<\/span>/);
 assert.doesNotMatch(header, /Beta documentation\./);
-assert.match(search, /w-9.*md:w-64/s);
-assert.match(search, /hidden.*md:block/s);
-assert.match(search, /hidden.*md:inline/s);
+assert.match(search, /variant="ghost"/);
+assert.match(search, /size="icon"/);

@@ -6,6 +6,7 @@ interface CodeTarget {
   host: HTMLDivElement;
   source: HTMLPreElement;
   code: string;
+  html: string;
   language?: string;
 }
 
@@ -22,6 +23,7 @@ export function CodeBlocks() {
           host,
           source,
           code: source.textContent ?? '',
+          html: source.outerHTML,
           language: source.dataset.language,
         };
       });
@@ -38,6 +40,7 @@ export function CodeBlocks() {
         <CodeBlock
           className="not-prose my-6"
           code={target.code}
+          html={target.html}
           language={target.language}
         />,
         target.host,
