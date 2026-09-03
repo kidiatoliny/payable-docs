@@ -15,10 +15,10 @@ const { nav, currentSlug = '' } = Astro.props;
 
 <header transition:persist="docs-header" class="sticky top-0 z-40 h-14 w-full border-b border-border bg-background/90 backdrop-blur-xl">
   <div class="app-bar-inner gap-2 sm:gap-3">
-    <MobileNav client:load nav={nav} currentSlug={currentSlug} />
+    <MobileNav client:load nav={nav} currentSlug={currentSlug} logoSrc={logo.src} />
 
     <a href="/" class="app-bar-brand min-w-0 shrink">
-      <img src={logo.src} alt="Akira" width="27" height="27" class="app-bar-logo" />
+      <img src={logo.src} alt="Akira" width="27" height="27" class="app-bar-logo hidden md:block" />
       <span class="truncate">payable</span>
     </a>
 

@@ -30,7 +30,7 @@ describe('MobileNav', () => {
   it('opens an accessible sheet with the shared hierarchy and active route', async () => {
     const user = userEvent.setup();
     window.history.replaceState({}, '', '/integrations/20c-trust-my-travel-credentials/');
-    render(<MobileNav nav={nav} currentSlug="integrations/20c-trust-my-travel-credentials" />);
+    render(<MobileNav nav={nav} currentSlug="integrations/20c-trust-my-travel-credentials" logoSrc="/logo.svg" />);
 
     await user.click(screen.getByRole('button', { name: 'Open navigation' }));
 
@@ -39,13 +39,15 @@ describe('MobileNav', () => {
     expect(dialog).toHaveClass('rounded-none');
     expect(screen.getByRole('button', { name: 'Trust My Travel' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('link', { name: 'Credentials' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByAltText('Akira')).toHaveAttribute('src', '/logo.svg');
+    expect(screen.queryByText('Documentation')).not.toBeInTheDocument();
   });
 
   it('closes after choosing a navigation item', async () => {
     const user = userEvent.setup();
     const preventNavigation = (event: MouseEvent) => event.preventDefault();
     document.addEventListener('click', preventNavigation);
-    render(<MobileNav nav={nav} currentSlug="elsewhere" />);
+    render(<MobileNav nav={nav} currentSlug="elsewhere" logoSrc="/logo.svg" />);
     await user.click(screen.getByRole('button', { name: 'Open navigation' }));
 
     await user.click(screen.getByRole('link', { name: 'Credentials' }));
@@ -56,7 +58,7 @@ describe('MobileNav', () => {
 
   it('closes with Escape and restores focus to the trigger', async () => {
     const user = userEvent.setup();
-    render(<MobileNav nav={nav} currentSlug="elsewhere" />);
+    render(<MobileNav nav={nav} currentSlug="elsewhere" logoSrc="/logo.svg" />);
     const trigger = screen.getByRole('button', { name: 'Open navigation' });
     await user.click(trigger);
 

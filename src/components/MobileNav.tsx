@@ -12,7 +12,15 @@ import {
 import type { NavGroup } from '@/lib/nav';
 import { DocsNav } from '@/components/DocsNav';
 
-function MobileSidebar({ nav, currentPath }: { nav: NavGroup[]; currentPath: string }) {
+function MobileSidebar({
+  nav,
+  currentPath,
+  logoSrc,
+}: {
+  nav: NavGroup[];
+  currentPath: string;
+  logoSrc: string;
+}) {
   const { openMobile, setOpenMobile } = useSidebar();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
@@ -28,7 +36,7 @@ function MobileSidebar({ nav, currentPath }: { nav: NavGroup[]; currentPath: str
       <Sidebar side="left">
         <SidebarHeader className="border-b border-sidebar-border px-5 py-4">
           <div className="flex items-center justify-between">
-            <span className="font-semibold">Documentation</span>
+            <img src={logoSrc} alt="Akira" width="27" height="27" className="app-bar-logo" />
             <Button type="button" variant="ghost" size="icon" aria-label="Close navigation" onClick={() => setOpenMobile(false)}>
               <X className="size-5" />
             </Button>
@@ -42,7 +50,15 @@ function MobileSidebar({ nav, currentPath }: { nav: NavGroup[]; currentPath: str
   );
 }
 
-export function MobileNav({ nav, currentSlug }: { nav: NavGroup[]; currentSlug: string }) {
+export function MobileNav({
+  nav,
+  currentSlug,
+  logoSrc,
+}: {
+  nav: NavGroup[];
+  currentSlug: string;
+  logoSrc: string;
+}) {
   const [currentPath, setCurrentPath] = useState(`/${currentSlug}`);
 
   useEffect(() => {
@@ -55,6 +71,6 @@ export function MobileNav({ nav, currentSlug }: { nav: NavGroup[]; currentSlug: 
   }, []);
 
   return <SidebarProvider className="min-h-0 w-auto md:hidden" style={{ '--sidebar': 'var(--background)' } as CSSProperties}>
-    <MobileSidebar nav={nav} currentPath={currentPath} />
+    <MobileSidebar nav={nav} currentPath={currentPath} logoSrc={logoSrc} />
   </SidebarProvider>;
 }

@@ -25,34 +25,34 @@
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
   }
-}
 
-.app-bar-inner {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  max-width: 1120px;
-  height: 100%;
-  margin: 0 auto;
-  padding: 0 22px;
-}
+  .app-bar-inner {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 1120px;
+    height: 100%;
+    margin: 0 auto;
+    padding: 0 22px;
+  }
 
-.app-bar-brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: var(--foreground);
-  font-size: 17px;
-  font-weight: 720;
-  letter-spacing: -0.035em;
-  text-decoration: none;
-}
+  .app-bar-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--foreground);
+    font-size: 17px;
+    font-weight: 720;
+    letter-spacing: -0.035em;
+    text-decoration: none;
+  }
 
-.app-bar-logo {
-  display: block;
-  flex: 0 0 auto;
-  width: 27px;
-  height: 27px;
+  .app-bar-logo {
+    display: block;
+    flex: 0 0 auto;
+    width: 27px;
+    height: 27px;
+  }
 }
 
 .bg-grid {
